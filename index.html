@@ -138,6 +138,17 @@
       margin-top: 6px;
       line-height: 1.4;
     }
+
+    .price-note {
+      background: #eef6ff;
+      border: 1px solid #c8e1ff;
+      color: #0b4f8a;
+      font-size: 14px;
+      padding: 8px;
+      border-radius: 8px;
+      margin-top: 6px;
+      line-height: 1.4;
+    }
   </style>
 </head>
 
@@ -165,7 +176,11 @@
     <input id="jan" type="text" inputmode="numeric" placeholder="JANコード">
 
     <label>売価（税抜）</label>
-    <input id="price" type="number" inputmode="numeric" placeholder="例：198" enterkeyhint="done">
+    <input id="price" type="number" inputmode="numeric" placeholder="空白または0なら定番売価" enterkeyhint="done">
+    <div class="price-note">
+      売価を空白または0で登録すると、商品マスタの「税抜売価」を使用します。<br>
+      値下げ価格を指定する場合だけ金額を入力してください。
+    </div>
 
     <label>POP種類</label>
     <select id="popType">
@@ -182,7 +197,8 @@
     <button class="clear-btn" onclick="clearForm()">入力をクリア</button>
 
     <div class="small-note">
-      JAN読取後は売価入力へ移動します。売価入力後、Enterで登録できます。
+      JAN読取後は売価入力へ移動します。売価入力後、Enterで登録できます。<br>
+      定番売価で作る場合は、売価欄を空白のまま登録してください。
     </div>
 
     <div id="message"></div>
@@ -301,7 +317,7 @@
       function(decodedText) {
         const jan = String(decodedText).replace(/\D/g, '');
         document.getElementById('jan').value = jan;
-        setMessage('JAN読取成功：' + jan + '　売価を入力してください', true);
+        setMessage('JAN読取成功：' + jan + '　売価を入力、または空白で定番売価登録できます。', true);
         stopScan();
 
         setTimeout(function() {
@@ -347,11 +363,25 @@
     data.price = String(data.price).replace(/[^\d]/g, '');
     data.count = String(data.count).replace(/[^\d]/g, '');
 
+    // 売価空白は0として送る
+    // PC側 create_pop.py で 0 の場合は商品マスタの「税抜売価」を使う
+    if (data.price === '') {
+      data.price = '0';
+    }
+
     if (!data.count) {
       data.count = '1';
     }
 
     return data;
+  }
+
+  function getPriceDisplay(price) {
+    if (!price || Number(price) <= 0) {
+      return '定番売価';
+    }
+
+    return price + '円';
   }
 
   function submitData() {
@@ -379,8 +409,10 @@
       return;
     }
 
-    if (!data.price || Number(data.price) <= 0) {
-      setMessage('売価を入力してください', false);
+    // 売価は空白または0でもOK
+    // ただし、マイナスや変な文字は getFormData 側で数字以外除去済み
+    if (Number(data.price) < 0) {
+      setMessage('売価が正しくありません', false);
       document.getElementById('price').focus();
       return;
     }
@@ -395,7 +427,11 @@
     submitButton.disabled = true;
     submitButton.textContent = '登録中...';
 
-    setMessage('登録中...', true);
+    if (Number(data.price) <= 0) {
+      setMessage('登録中... 定番売価で登録します。', true);
+    } else {
+      setMessage('登録中... 売価 ' + data.price + '円で登録します。', true);
+    }
 
     sendJsonp(data);
   }
@@ -407,7 +443,15 @@
     window[callbackName] = function(result) {
       try {
         if (result.ok) {
-          setMessage('登録しました：' + data.store + ' / ' + result.jan + ' / ' + data.price + '円', true);
+          setMessage(
+            '登録しました：' +
+            data.store +
+            ' / ' +
+            result.jan +
+            ' / ' +
+            getPriceDisplay(data.price),
+            true
+          );
 
           addHistory(data);
           clearFormAfterSubmit();
@@ -510,7 +554,7 @@
         item.time + '　' +
         item.store + '　' +
         item.jan + '　' +
-        item.price + '円　' +
+        getPriceDisplay(item.price) + '　' +
         item.count + '枚' +
         '</div>';
     }).join('');
