@@ -45,10 +45,21 @@
       border: 1px solid #ccc;
     }
 
+    select:disabled {
+      background: #eeeeee;
+      color: #333;
+      font-weight: bold;
+      opacity: 1;
+    }
+
     button {
       border: none;
       font-weight: bold;
       margin-top: 14px;
+    }
+
+    button:disabled {
+      opacity: 0.6;
     }
 
     .scan-btn {
@@ -66,6 +77,18 @@
       color: white;
       font-size: 22px;
       padding: 14px;
+    }
+
+    .store-fixed {
+      background: #fff3cd;
+      border: 1px solid #ffecb5;
+      color: #7a5200;
+      font-weight: bold;
+      padding: 10px;
+      border-radius: 8px;
+      margin-top: 8px;
+      text-align: center;
+      display: none;
     }
 
     #reader {
@@ -110,6 +133,7 @@
       <option value="寒川">寒川</option>
       <option value="戸塚">戸塚</option>
     </select>
+    <div id="storeFixedMessage" class="store-fixed"></div>
 
     <label>JANコード</label>
     <input id="jan" type="text" inputmode="numeric" placeholder="JANコード">
@@ -128,7 +152,7 @@
     <label>備考</label>
     <textarea id="note" rows="2" placeholder="任意"></textarea>
 
-    <button class="submit-btn" onclick="submitData()">登録する</button>
+    <button id="submitButton" class="submit-btn" onclick="submitData()">登録する</button>
 
     <div id="message"></div>
   </div>
@@ -137,13 +161,60 @@
   const WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbzJH9VXJdxIJ9-wLscaE9w0LKeeosIvtJZDiT9O7RNcxHS1eiCV1BNX-8XXmm785Ow/exec';
   const SECRET_KEY = 'pop2026';
 
+  const STORE_LIST = [
+    '海老名',
+    '座間入谷',
+    '大沼',
+    '寒川',
+    '戸塚'
+  ];
+
   let html5QrCode = null;
   let scanning = false;
+  let storeFixed = false;
+
+  document.addEventListener('DOMContentLoaded', function() {
+    initStoreFromUrl();
+  });
 
   function setMessage(text, ok) {
     const msg = document.getElementById('message');
     msg.textContent = text;
     msg.className = ok ? 'ok' : 'ng';
+  }
+
+  function initStoreFromUrl() {
+    const params = new URLSearchParams(window.location.search);
+    const storeParam = params.get('store');
+
+    const storeSelect = document.getElementById('store');
+    const fixedMessage = document.getElementById('storeFixedMessage');
+
+    if (!storeParam) {
+      storeFixed = false;
+      storeSelect.disabled = false;
+      fixedMessage.style.display = 'none';
+      return;
+    }
+
+    const decodedStore = String(storeParam).trim();
+
+    if (STORE_LIST.includes(decodedStore)) {
+      storeSelect.value = decodedStore;
+      storeSelect.disabled = true;
+      storeFixed = true;
+
+      fixedMessage.textContent = 'この端末の店舗：' + decodedStore;
+      fixedMessage.style.display = 'block';
+
+      setMessage('店舗を固定しました：' + decodedStore, true);
+    } else {
+      storeFixed = false;
+      storeSelect.disabled = false;
+      fixedMessage.style.display = 'none';
+
+      setMessage('URLの店舗名が正しくありません：' + decodedStore, false);
+    }
   }
 
   function startScan() {
@@ -175,6 +246,7 @@
         document.getElementById('jan').value = jan;
         setMessage('JAN読取成功：' + jan, true);
         stopScan();
+        document.getElementById('price').focus();
       },
       function(errorMessage) {
         // 読取途中のエラーは表示しない
@@ -202,6 +274,8 @@
   }
 
   function submitData() {
+    const submitButton = document.getElementById('submitButton');
+
     const data = {
       store: document.getElementById('store').value,
       jan: document.getElementById('jan').value,
@@ -211,8 +285,15 @@
       note: document.getElementById('note').value
     };
 
+    data.jan = String(data.jan).replace(/\D/g, '');
+
     if (!data.store) {
       setMessage('店舗を選択してください', false);
+      return;
+    }
+
+    if (!STORE_LIST.includes(data.store)) {
+      setMessage('店舗名が正しくありません', false);
       return;
     }
 
@@ -226,6 +307,12 @@
       return;
     }
 
+    if (!data.count || Number(data.count) <= 0) {
+      setMessage('枚数を入力してください', false);
+      return;
+    }
+
+    submitButton.disabled = true;
     setMessage('登録中...', true);
 
     sendJsonp(data);
@@ -233,11 +320,12 @@
 
   function sendJsonp(data) {
     const callbackName = 'popCallback_' + Date.now();
+    const submitButton = document.getElementById('submitButton');
 
     window[callbackName] = function(result) {
       try {
         if (result.ok) {
-          setMessage('登録しました：' + result.jan, true);
+          setMessage('登録しました：' + data.store + ' / ' + result.jan, true);
 
           document.getElementById('jan').value = '';
           document.getElementById('price').value = '';
@@ -247,6 +335,7 @@
           setMessage(result.error || '登録に失敗しました', false);
         }
       } finally {
+        submitButton.disabled = false;
         delete window[callbackName];
 
         const oldScript = document.getElementById(callbackName);
@@ -273,6 +362,7 @@
     script.src = WEB_APP_URL + '?' + params.toString();
 
     script.onerror = function() {
+      submitButton.disabled = false;
       setMessage('登録通信に失敗しました', false);
       delete window[callbackName];
       script.remove();
