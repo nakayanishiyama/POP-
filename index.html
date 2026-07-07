@@ -65,6 +65,8 @@
     .scan-btn {
       background: #1976d2;
       color: white;
+      font-size: 20px;
+      padding: 14px;
     }
 
     .stop-btn {
@@ -72,11 +74,16 @@
       color: white;
     }
 
+    .clear-btn {
+      background: #999;
+      color: white;
+    }
+
     .submit-btn {
       background: #d32f2f;
       color: white;
-      font-size: 22px;
-      padding: 14px;
+      font-size: 24px;
+      padding: 16px;
     }
 
     .store-fixed {
@@ -112,6 +119,25 @@
     .ng {
       color: #d32f2f;
     }
+
+    .history-title {
+      font-weight: bold;
+      margin-bottom: 8px;
+    }
+
+    .history-item {
+      font-size: 15px;
+      padding: 8px;
+      border-bottom: 1px solid #eee;
+      line-height: 1.4;
+    }
+
+    .small-note {
+      font-size: 14px;
+      color: #666;
+      margin-top: 6px;
+      line-height: 1.4;
+    }
   </style>
 </head>
 
@@ -139,7 +165,7 @@
     <input id="jan" type="text" inputmode="numeric" placeholder="JANコード">
 
     <label>売価（税抜）</label>
-    <input id="price" type="number" inputmode="numeric" placeholder="例：198">
+    <input id="price" type="number" inputmode="numeric" placeholder="例：198" enterkeyhint="done">
 
     <label>POP種類</label>
     <select id="popType">
@@ -153,8 +179,20 @@
     <textarea id="note" rows="2" placeholder="任意"></textarea>
 
     <button id="submitButton" class="submit-btn" onclick="submitData()">登録する</button>
+    <button class="clear-btn" onclick="clearForm()">入力をクリア</button>
+
+    <div class="small-note">
+      JAN読取後は売価入力へ移動します。売価入力後、Enterで登録できます。
+    </div>
 
     <div id="message"></div>
+  </div>
+
+  <div class="box">
+    <div class="history-title">直近登録</div>
+    <div id="history">
+      <div class="history-item">まだ登録はありません</div>
+    </div>
   </div>
 
 <script>
@@ -172,9 +210,12 @@
   let html5QrCode = null;
   let scanning = false;
   let storeFixed = false;
+  let submitting = false;
+  let historyList = [];
 
   document.addEventListener('DOMContentLoaded', function() {
     initStoreFromUrl();
+    setupEnterSubmit();
   });
 
   function setMessage(text, ok) {
@@ -217,6 +258,22 @@
     }
   }
 
+  function setupEnterSubmit() {
+    document.getElementById('price').addEventListener('keydown', function(e) {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        submitData();
+      }
+    });
+
+    document.getElementById('jan').addEventListener('keydown', function(e) {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        document.getElementById('price').focus();
+      }
+    });
+  }
+
   function startScan() {
     if (scanning) {
       setMessage('すでにカメラ起動中です', true);
@@ -244,9 +301,12 @@
       function(decodedText) {
         const jan = String(decodedText).replace(/\D/g, '');
         document.getElementById('jan').value = jan;
-        setMessage('JAN読取成功：' + jan, true);
+        setMessage('JAN読取成功：' + jan + '　売価を入力してください', true);
         stopScan();
-        document.getElementById('price').focus();
+
+        setTimeout(function() {
+          document.getElementById('price').focus();
+        }, 300);
       },
       function(errorMessage) {
         // 読取途中のエラーは表示しない
@@ -273,9 +333,7 @@
     });
   }
 
-  function submitData() {
-    const submitButton = document.getElementById('submitButton');
-
+  function getFormData() {
     const data = {
       store: document.getElementById('store').value,
       jan: document.getElementById('jan').value,
@@ -286,6 +344,24 @@
     };
 
     data.jan = String(data.jan).replace(/\D/g, '');
+    data.price = String(data.price).replace(/[^\d]/g, '');
+    data.count = String(data.count).replace(/[^\d]/g, '');
+
+    if (!data.count) {
+      data.count = '1';
+    }
+
+    return data;
+  }
+
+  function submitData() {
+    if (submitting) {
+      setMessage('登録処理中です。少し待ってください。', true);
+      return;
+    }
+
+    const submitButton = document.getElementById('submitButton');
+    const data = getFormData();
 
     if (!data.store) {
       setMessage('店舗を選択してください', false);
@@ -299,20 +375,26 @@
 
     if (!data.jan) {
       setMessage('JANコードを入力してください', false);
+      document.getElementById('jan').focus();
       return;
     }
 
     if (!data.price || Number(data.price) <= 0) {
       setMessage('売価を入力してください', false);
+      document.getElementById('price').focus();
       return;
     }
 
     if (!data.count || Number(data.count) <= 0) {
       setMessage('枚数を入力してください', false);
+      document.getElementById('count').focus();
       return;
     }
 
+    submitting = true;
     submitButton.disabled = true;
+    submitButton.textContent = '登録中...';
+
     setMessage('登録中...', true);
 
     sendJsonp(data);
@@ -325,17 +407,18 @@
     window[callbackName] = function(result) {
       try {
         if (result.ok) {
-          setMessage('登録しました：' + data.store + ' / ' + result.jan, true);
+          setMessage('登録しました：' + data.store + ' / ' + result.jan + ' / ' + data.price + '円', true);
 
-          document.getElementById('jan').value = '';
-          document.getElementById('price').value = '';
-          document.getElementById('count').value = '1';
-          document.getElementById('note').value = '';
+          addHistory(data);
+          clearFormAfterSubmit();
         } else {
           setMessage(result.error || '登録に失敗しました', false);
         }
       } finally {
+        submitting = false;
         submitButton.disabled = false;
+        submitButton.textContent = '登録する';
+
         delete window[callbackName];
 
         const oldScript = document.getElementById(callbackName);
@@ -362,13 +445,75 @@
     script.src = WEB_APP_URL + '?' + params.toString();
 
     script.onerror = function() {
+      submitting = false;
       submitButton.disabled = false;
+      submitButton.textContent = '登録する';
+
       setMessage('登録通信に失敗しました', false);
       delete window[callbackName];
       script.remove();
     };
 
     document.body.appendChild(script);
+  }
+
+  function clearFormAfterSubmit() {
+    document.getElementById('jan').value = '';
+    document.getElementById('price').value = '';
+    document.getElementById('count').value = '1';
+    document.getElementById('note').value = '';
+
+    setTimeout(function() {
+      document.getElementById('jan').focus();
+    }, 300);
+  }
+
+  function clearForm() {
+    document.getElementById('jan').value = '';
+    document.getElementById('price').value = '';
+    document.getElementById('count').value = '1';
+    document.getElementById('note').value = '';
+
+    setMessage('入力をクリアしました', true);
+    document.getElementById('jan').focus();
+  }
+
+  function addHistory(data) {
+    const now = new Date();
+    const timeText =
+      String(now.getHours()).padStart(2, '0') + ':' +
+      String(now.getMinutes()).padStart(2, '0');
+
+    historyList.unshift({
+      time: timeText,
+      store: data.store,
+      jan: data.jan,
+      price: data.price,
+      count: data.count
+    });
+
+    historyList = historyList.slice(0, 5);
+
+    renderHistory();
+  }
+
+  function renderHistory() {
+    const history = document.getElementById('history');
+
+    if (historyList.length === 0) {
+      history.innerHTML = '<div class="history-item">まだ登録はありません</div>';
+      return;
+    }
+
+    history.innerHTML = historyList.map(function(item) {
+      return '<div class="history-item">' +
+        item.time + '　' +
+        item.store + '　' +
+        item.jan + '　' +
+        item.price + '円　' +
+        item.count + '枚' +
+        '</div>';
+    }).join('');
   }
 </script>
 
