@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>POP依頼登録</title>
+
+  <script src="https://unpkg.com/html5-qrcode"></script>
+
+  <style>
+    body {
+      font-family: sans-serif;
+      margin: 0;
+      padding: 16px;
+      background: #f5f5f5;
+    }
+
+    h1 {
+      font-size: 22px;
+      margin-bottom: 16px;
+      text-align: center;
+    }
+
+    .box {
+      background: white;
+      padding: 16px;
+      border-radius: 12px;
+      margin-bottom: 16px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+    }
+
+    label {
+      display: block;
+      font-weight: bold;
+      margin-top: 12px;
+      margin-bottom: 4px;
+    }
+
+    input, select, textarea, button {
+      width: 100%;
+      font-size: 18px;
+      padding: 10px;
+      box-sizing: border-box;
+      border-radius: 8px;
+      border: 1px solid #ccc;
+    }
+
+    button {
+      border: none;
+      font-weight: bold;
+      margin-top: 14px;
+    }
+
+    .scan-btn {
+      background: #1976d2;
+      color: white;
+    }
+
+    .stop-btn {
+      background: #777;
+      color: white;
+    }
+
+    .submit-btn {
+      background: #d32f2f;
+      color: white;
+      font-size: 22px;
+      padding: 14px;
+    }
+
+    #reader {
+      width: 100%;
+      margin-top: 12px;
+    }
+
+    #message {
+      font-size: 18px;
+      font-weight: bold;
+      text-align: center;
+      margin-top: 12px;
+      line-height: 1.5;
+      word-break: break-word;
+    }
+
+    .ok {
+      color: #0a8f08;
+    }
+
+    .ng {
+      color: #d32f2f;
+    }
+  </style>
+</head>
+
+<body>
+  <h1>POP依頼登録</h1>
+
+  <div class="box">
+    <button class="scan-btn" onclick="startScan()">JANをカメラで読む</button>
+    <button class="stop-btn" onclick="stopScan()">カメラ停止</button>
+    <div id="reader"></div>
+  </div>
+
+  <div class="box">
+    <label>店舗</label>
+    <select id="store">
+      <option value="海老名">海老名</option>
+      <option value="座間入谷">座間入谷</option>
+      <option value="大沼">大沼</option>
+      <option value="寒川">寒川</option>
+      <option value="戸塚">戸塚</option>
+    </select>
+
+    <label>JANコード</label>
+    <input id="jan" type="text" inputmode="numeric" placeholder="JANコード">
+
+    <label>売価（税抜）</label>
+    <input id="price" type="number" inputmode="numeric" placeholder="例：198">
+
+    <label>POP種類</label>
+    <select id="popType">
+      <option value="値下げ">値下げ</option>
+    </select>
+
+    <label>枚数</label>
+    <input id="count" type="number" inputmode="numeric" value="1">
+
+    <label>備考</label>
+    <textarea id="note" rows="2" placeholder="任意"></textarea>
+
+    <button class="submit-btn" onclick="submitData()">登録する</button>
+
+    <div id="message"></div>
+  </div>
+
+<script>
+  const WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbzJH9VXJdxIJ9-wLscaE9w0LKeeosIvtJZDiT9O7RNcxHS1eiCV1BNX-8XXmm785Ow/exec';
+  const SECRET_KEY = 'pop2026';
+
+  let html5QrCode = null;
+  let scanning = false;
+
+  function setMessage(text, ok) {
+    const msg = document.getElementById('message');
+    msg.textContent = text;
+    msg.className = ok ? 'ok' : 'ng';
+  }
+
+  function startScan() {
+    if (scanning) {
+      setMessage('すでにカメラ起動中です', true);
+      return;
+    }
+
+    html5QrCode = new Html5Qrcode("reader");
+
+    const config = {
+      fps: 10,
+      qrbox: { width: 280, height: 160 },
+      formatsToSupport: [
+        Html5QrcodeSupportedFormats.EAN_13,
+        Html5QrcodeSupportedFormats.EAN_8,
+        Html5QrcodeSupportedFormats.UPC_A,
+        Html5QrcodeSupportedFormats.UPC_E
+      ]
+    };
+
+    setMessage('カメラを起動しています。許可を求められたら「許可」を押してください。', true);
+
+    html5QrCode.start(
+      { facingMode: "environment" },
+      config,
+      function(decodedText) {
+        const jan = String(decodedText).replace(/\D/g, '');
+        document.getElementById('jan').value = jan;
+        setMessage('JAN読取成功：' + jan, true);
+        stopScan();
+      },
+      function(errorMessage) {
+        // 読取途中のエラーは表示しない
+      }
+    ).then(function() {
+      scanning = true;
+      setMessage('カメラ起動中。バーコードを枠に合わせてください。', true);
+    }).catch(function(err) {
+      scanning = false;
+      setMessage('カメラを起動できません：' + String(err), false);
+    });
+  }
+
+  function stopScan() {
+    if (!html5QrCode || !scanning) {
+      return;
+    }
+
+    html5QrCode.stop().then(function() {
+      html5QrCode.clear();
+      scanning = false;
+    }).catch(function(err) {
+      scanning = false;
+    });
+  }
+
+  function submitData() {
+    const data = {
+      store: document.getElementById('store').value,
+      jan: document.getElementById('jan').value,
+      price: document.getElementById('price').value,
+      popType: document.getElementById('popType').value,
+      count: document.getElementById('count').value,
+      note: document.getElementById('note').value
+    };
+
+    if (!data.store) {
+      setMessage('店舗を選択してください', false);
+      return;
+    }
+
+    if (!data.jan) {
+      setMessage('JANコードを入力してください', false);
+      return;
+    }
+
+    if (!data.price || Number(data.price) <= 0) {
+      setMessage('売価を入力してください', false);
+      return;
+    }
+
+    setMessage('登録中...', true);
+
+    sendJsonp(data);
+  }
+
+  function sendJsonp(data) {
+    const callbackName = 'popCallback_' + Date.now();
+
+    window[callbackName] = function(result) {
+      try {
+        if (result.ok) {
+          setMessage('登録しました：' + result.jan, true);
+
+          document.getElementById('jan').value = '';
+          document.getElementById('price').value = '';
+          document.getElementById('count').value = '1';
+          document.getElementById('note').value = '';
+        } else {
+          setMessage(result.error || '登録に失敗しました', false);
+        }
+      } finally {
+        delete window[callbackName];
+
+        const oldScript = document.getElementById(callbackName);
+        if (oldScript) {
+          oldScript.remove();
+        }
+      }
+    };
+
+    const params = new URLSearchParams({
+      action: 'save',
+      key: SECRET_KEY,
+      store: data.store,
+      jan: data.jan,
+      price: data.price,
+      popType: data.popType,
+      count: data.count,
+      note: data.note,
+      callback: callbackName
+    });
+
+    const script = document.createElement('script');
+    script.id = callbackName;
+    script.src = WEB_APP_URL + '?' + params.toString();
+
+    script.onerror = function() {
+      setMessage('登録通信に失敗しました', false);
+      delete window[callbackName];
+      script.remove();
+    };
+
+    document.body.appendChild(script);
+  }
+</script>
+
+</body>
+</html>
