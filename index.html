@@ -199,8 +199,7 @@
 
     <div class="small-note">
       JAN読取後は売価入力へ移動します。<br>
-      定番売価で作る場合は、売価欄を空白のまま登録してください。<br>
-      登録成功後、JAN・売価は自動でクリアされます。
+      定番売価で作る場合は、売価欄を空白のまま登録してください。
     </div>
 
     <div id="message"></div>
@@ -230,10 +229,6 @@
   let submitting = false;
   let historyList = [];
   let callbackTimer = null;
-
-  // 同じ内容の短時間二重登録防止
-  let lastSubmitKey = '';
-  let lastSubmitTime = 0;
 
   document.addEventListener('DOMContentLoaded', function() {
     initStoreFromUrl();
@@ -395,7 +390,6 @@
     }
 
     const data = getFormData();
-    const submitButton = document.getElementById('submitButton');
 
     if (!data.store) {
       setMessage('店舗を選択してください', false);
@@ -419,20 +413,9 @@
       return;
     }
 
-    // 同じ店舗・JAN・売価・POP種類を8秒以内に連続登録しない
-    const submitKey = data.store + '|' + data.jan + '|' + data.price + '|' + data.popType;
-    const nowTime = Date.now();
-
-    if (submitKey === lastSubmitKey && nowTime - lastSubmitTime < 8000) {
-      setMessage('同じ内容の連続登録を防止しました。次の商品を読み取ってください。', false);
-      clearFormAfterSubmit();
-      return;
-    }
-
-    lastSubmitKey = submitKey;
-    lastSubmitTime = nowTime;
-
     submitting = true;
+
+    const submitButton = document.getElementById('submitButton');
     submitButton.disabled = true;
     submitButton.textContent = '登録中...';
 
@@ -450,11 +433,13 @@
     const scriptId = 'popJsonpScript';
     const submitButton = document.getElementById('submitButton');
 
+    // 古いscriptタグを削除
     const oldScript = document.getElementById(scriptId);
     if (oldScript) {
       oldScript.remove();
     }
 
+    // 古いタイマーを削除
     if (callbackTimer) {
       clearTimeout(callbackTimer);
       callbackTimer = null;
@@ -476,21 +461,18 @@
 
       try {
         if (result && result.ok) {
-          // 先に入力欄を消す。ここが重要。
-          clearFormAfterSubmit();
-
-          addHistory(data);
-
           setMessage(
             '登録しました：' +
             data.store +
             ' / ' +
             result.jan +
             ' / ' +
-            getPriceDisplay(data.price) +
-            '　次の商品を読み取ってください。',
+            getPriceDisplay(data.price),
             true
           );
+
+          addHistory(data);
+          clearFormAfterSubmit();
 
         } else {
           setMessage(
@@ -582,23 +564,13 @@
   }
 
   function clearFormAfterSubmit() {
-    const janInput = document.getElementById('jan');
-    const priceInput = document.getElementById('price');
-    const countInput = document.getElementById('count');
-    const noteInput = document.getElementById('note');
+    document.getElementById('jan').value = '';
+    document.getElementById('price').value = '';
+    document.getElementById('count').value = '1';
+    document.getElementById('note').value = '';
 
-    janInput.value = '';
-    priceInput.value = '';
-    countInput.value = '1';
-    noteInput.value = '';
-
-    // 念のため、少し遅れてもう一度消す
     setTimeout(function() {
-      janInput.value = '';
-      priceInput.value = '';
-      countInput.value = '1';
-      noteInput.value = '';
-      janInput.focus();
+      document.getElementById('jan').focus();
     }, 300);
   }
 
