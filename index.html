@@ -110,6 +110,7 @@
       margin-top: 12px;
       line-height: 1.5;
       word-break: break-word;
+      white-space: pre-wrap;
     }
 
     .ok {
@@ -198,17 +199,16 @@
 
     <div class="small-note">
       JAN読取後は売価入力へ移動します。<br>
-      定番売価で作る場合は、売価欄を空白のまま登録してください。<br>
-      送信後はスプレッドシート「POP依頼」に登録されたか確認してください。
+      定番売価で作る場合は、売価欄を空白のまま登録してください。
     </div>
 
     <div id="message"></div>
   </div>
 
   <div class="box">
-    <div class="history-title">直近送信</div>
+    <div class="history-title">直近登録</div>
     <div id="history">
-      <div class="history-item">まだ送信はありません</div>
+      <div class="history-item">まだ登録はありません</div>
     </div>
   </div>
 
@@ -228,6 +228,7 @@
   let scanning = false;
   let submitting = false;
   let historyList = [];
+  let callbackTimer = null;
 
   document.addEventListener('DOMContentLoaded', function() {
     initStoreFromUrl();
@@ -314,7 +315,6 @@
       function(decodedText) {
         const jan = String(decodedText).replace(/\D/g, '');
         document.getElementById('jan').value = jan;
-
         setMessage('JAN読取成功：' + jan + '　売価入力、または空白で定番売価登録できます。', true);
 
         stopScan();
@@ -357,17 +357,15 @@
     priceValue = String(priceValue).replace(/[^\d]/g, '');
     countValue = String(countValue).replace(/[^\d]/g, '');
 
-    // 売価空白は0として送る
     if (priceValue === '') {
       priceValue = '0';
     }
 
-    // 枚数空白は1として送る
     if (countValue === '') {
       countValue = '1';
     }
 
-    const data = {
+    return {
       store: document.getElementById('store').value,
       jan: janValue,
       price: priceValue,
@@ -375,8 +373,6 @@
       count: countValue,
       note: document.getElementById('note').value
     };
-
-    return data;
   }
 
   function getPriceDisplay(price) {
@@ -393,7 +389,6 @@
       return;
     }
 
-    const submitButton = document.getElementById('submitButton');
     const data = getFormData();
 
     if (!data.store) {
@@ -412,9 +407,6 @@
       return;
     }
 
-    // 売価チェックはしない
-    // 0 または 空白由来の0 は定番売価扱い
-
     if (!data.count || Number(data.count) <= 0) {
       setMessage('枚数を入力してください', false);
       document.getElementById('count').focus();
@@ -422,63 +414,154 @@
     }
 
     submitting = true;
+
+    const submitButton = document.getElementById('submitButton');
     submitButton.disabled = true;
-    submitButton.textContent = '送信中...';
+    submitButton.textContent = '登録中...';
 
     if (Number(data.price) <= 0) {
-      setMessage('送信中... 定番売価で登録します。', true);
+      setMessage('登録中... 定番売価で登録します。', true);
     } else {
-      setMessage('送信中... 売価 ' + data.price + '円で登録します。', true);
+      setMessage('登録中... 売価 ' + data.price + '円で登録します。', true);
     }
 
-    sendData(data);
+    sendJsonp(data);
   }
 
-  function sendData(data) {
-  const submitButton = document.getElementById('submitButton');
+  function sendJsonp(data) {
+    const callbackName = 'popCallback';
+    const scriptId = 'popJsonpScript';
+    const submitButton = document.getElementById('submitButton');
 
-  const params = new URLSearchParams({
-    action: 'save',
-    key: SECRET_KEY,
-    store: data.store,
-    jan: data.jan,
-    price: data.price,
-    popType: data.popType,
-    count: data.count,
-    note: data.note || '',
-    t: String(Date.now())
-  });
+    // 古いscriptタグを削除
+    const oldScript = document.getElementById(scriptId);
+    if (oldScript) {
+      oldScript.remove();
+    }
 
-  const url = WEB_APP_URL + '?' + params.toString();
+    // 古いタイマーを削除
+    if (callbackTimer) {
+      clearTimeout(callbackTimer);
+      callbackTimer = null;
+    }
 
-  // ここで先に画面を戻す
-  setMessage(
-    '登録送信しました：' +
-    data.store +
-    ' / ' +
-    data.jan +
-    ' / ' +
-    getPriceDisplay(data.price) +
-    '　※反映に数秒かかる場合があります',
-    true
-  );
+    let finished = false;
 
-  addHistory(data);
-  clearFormAfterSubmit();
+    window[callbackName] = function(result) {
+      if (finished) {
+        return;
+      }
 
-  submitting = false;
-  submitButton.disabled = false;
-  submitButton.textContent = '登録する';
+      finished = true;
 
-  // 送信自体は裏で続ける
-  fetch(url, {
-    method: 'GET',
-    mode: 'no-cors',
-    cache: 'no-store'
-  }).catch(function(err) {
-    console.log('送信エラー:', err);
-  });
-}
+      if (callbackTimer) {
+        clearTimeout(callbackTimer);
+        callbackTimer = null;
+      }
+
+      try {
+        if (result && result.ok) {
+          setMessage(
+            '登録しました：' +
+            data.store +
+            ' / ' +
+            result.jan +
+            ' / ' +
+            getPriceDisplay(data.price),
+            true
+          );
+
+          addHistory(data);
+          clearFormAfterSubmit();
+
+        } else {
+          setMessage(
+            (result && result.error) ? result.error : '登録に失敗しました',
+            false
+          );
+        }
+      } finally {
+        submitting = false;
+        submitButton.disabled = false;
+        submitButton.textContent = '登録する';
+
+        const scriptEl = document.getElementById(scriptId);
+        if (scriptEl) {
+          scriptEl.remove();
+        }
+      }
+    };
+
+    const params = new URLSearchParams({
+      action: 'save',
+      key: SECRET_KEY,
+      store: data.store,
+      jan: data.jan,
+      price: data.price,
+      popType: data.popType,
+      count: data.count,
+      note: data.note || '',
+      callback: callbackName,
+      t: String(Date.now())
+    });
+
+    const url = WEB_APP_URL + '?' + params.toString();
+
+    const script = document.createElement('script');
+    script.id = scriptId;
+    script.src = url;
+
+    script.onerror = function() {
+      if (finished) {
+        return;
+      }
+
+      finished = true;
+
+      if (callbackTimer) {
+        clearTimeout(callbackTimer);
+        callbackTimer = null;
+      }
+
+      submitting = false;
+      submitButton.disabled = false;
+      submitButton.textContent = '登録する';
+
+      setMessage(
+        '登録通信に失敗しました。\n通信先URL：' + url,
+        false
+      );
+
+      const scriptEl = document.getElementById(scriptId);
+      if (scriptEl) {
+        scriptEl.remove();
+      }
+    };
+
+    callbackTimer = setTimeout(function() {
+      if (finished) {
+        return;
+      }
+
+      finished = true;
+
+      submitting = false;
+      submitButton.disabled = false;
+      submitButton.textContent = '登録する';
+
+      setMessage(
+        '登録応答がありません。時間を置いてスプレッドシートを確認してください。\n通信先URL：' + url,
+        false
+      );
+
+      const scriptEl = document.getElementById(scriptId);
+      if (scriptEl) {
+        scriptEl.remove();
+      }
+    }, 15000);
+
+    document.body.appendChild(script);
+  }
 
   function clearFormAfterSubmit() {
     document.getElementById('jan').value = '';
@@ -524,7 +607,7 @@
     const history = document.getElementById('history');
 
     if (historyList.length === 0) {
-      history.innerHTML = '<div class="history-item">まだ送信はありません</div>';
+      history.innerHTML = '<div class="history-item">まだ登録はありません</div>';
       return;
     }
 
