@@ -497,12 +497,47 @@
   }
 
   function sendSaveJsonp(data) {
-    const callbackName = 'popCallback_' + Date.now();
+    const callbackName = 'popCallback_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8);
     const submitButton = document.getElementById('submitButton');
 
-    window[callbackName] = function(result) {
+    let finished = false;
+
+    const timer = setTimeout(function() {
+      if (finished) {
+        return;
+      }
+
+      finished = true;
+
+      submitting = false;
+      submitButton.disabled = false;
+      submitButton.textContent = '登録する';
+
+      setMessage(
+        '登録の応答がありません。スプレッドシートに登録されているか確認してください。重複防止のため、すぐ再登録しないでください。',
+        false
+      );
+
       try {
-        if (result.ok) {
+        delete window[callbackName];
+      } catch (e) {}
+
+      const oldScript = document.getElementById(callbackName);
+      if (oldScript) {
+        oldScript.remove();
+      }
+    }, 20000);
+
+    window[callbackName] = function(result) {
+      if (finished) {
+        return;
+      }
+
+      finished = true;
+      clearTimeout(timer);
+
+      try {
+        if (result && result.ok) {
           setMessage(
             '登録しました：' +
             data.store +
@@ -518,14 +553,19 @@
           addHistory(data);
           clearFormAfterSubmit();
         } else {
-          setMessage(result.error || '登録に失敗しました', false);
+          setMessage(
+            (result && result.error) ? result.error : '登録に失敗しました',
+            false
+          );
         }
       } finally {
         submitting = false;
         submitButton.disabled = false;
         submitButton.textContent = '登録する';
 
-        delete window[callbackName];
+        try {
+          delete window[callbackName];
+        } catch (e) {}
 
         const oldScript = document.getElementById(callbackName);
         if (oldScript) {
@@ -544,7 +584,8 @@
       count: data.count,
       note: data.note,
       requestId: data.requestId,
-      callback: callbackName
+      callback: callbackName,
+      t: String(Date.now())
     });
 
     const script = document.createElement('script');
@@ -552,12 +593,26 @@
     script.src = WEB_APP_URL + '?' + params.toString();
 
     script.onerror = function() {
+      if (finished) {
+        return;
+      }
+
+      finished = true;
+      clearTimeout(timer);
+
       submitting = false;
       submitButton.disabled = false;
       submitButton.textContent = '登録する';
 
-      setMessage('登録通信に失敗しました', false);
-      delete window[callbackName];
+      setMessage(
+        '登録通信に失敗しました。電波状況、Webアプリのデプロイ反映、またはApps Scriptの権限を確認してください。',
+        false
+      );
+
+      try {
+        delete window[callbackName];
+      } catch (e) {}
+
       script.remove();
     };
 
@@ -587,12 +642,47 @@
   }
 
   function sendPrintJsonp(requestId) {
-    const callbackName = 'popPrintCallback_' + Date.now();
+    const callbackName = 'popPrintCallback_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8);
     const printButton = document.getElementById('printButton');
 
-    window[callbackName] = function(result) {
+    let finished = false;
+
+    const timer = setTimeout(function() {
+      if (finished) {
+        return;
+      }
+
+      finished = true;
+
+      printing = false;
+      printButton.disabled = false;
+      printButton.textContent = '印刷実行';
+
+      setMessage(
+        '印刷実行の応答がありません。スプレッドシートで状態が「印刷待ち」になっているか確認してください。',
+        false
+      );
+
       try {
-        if (result.ok && Number(result.count) > 0) {
+        delete window[callbackName];
+      } catch (e) {}
+
+      const oldScript = document.getElementById(callbackName);
+      if (oldScript) {
+        oldScript.remove();
+      }
+    }, 20000);
+
+    window[callbackName] = function(result) {
+      if (finished) {
+        return;
+      }
+
+      finished = true;
+      clearTimeout(timer);
+
+      try {
+        if (result && result.ok && Number(result.count) > 0) {
           setMessage(
             '印刷実行しました：' +
             result.count +
@@ -604,17 +694,22 @@
           historyList = [];
           renderHistory();
           resetRequestId();
-        } else if (result.ok) {
+        } else if (result && result.ok) {
           setMessage('印刷待ちにする対象がありませんでした', false);
         } else {
-          setMessage(result.error || '印刷実行に失敗しました', false);
+          setMessage(
+            (result && result.error) ? result.error : '印刷実行に失敗しました',
+            false
+          );
         }
       } finally {
         printing = false;
         printButton.disabled = false;
         printButton.textContent = '印刷実行';
 
-        delete window[callbackName];
+        try {
+          delete window[callbackName];
+        } catch (e) {}
 
         const oldScript = document.getElementById(callbackName);
         if (oldScript) {
@@ -627,7 +722,8 @@
       action: 'print',
       key: SECRET_KEY,
       requestId: requestId,
-      callback: callbackName
+      callback: callbackName,
+      t: String(Date.now())
     });
 
     const script = document.createElement('script');
@@ -635,12 +731,26 @@
     script.src = WEB_APP_URL + '?' + params.toString();
 
     script.onerror = function() {
+      if (finished) {
+        return;
+      }
+
+      finished = true;
+      clearTimeout(timer);
+
       printing = false;
       printButton.disabled = false;
       printButton.textContent = '印刷実行';
 
-      setMessage('印刷実行の通信に失敗しました', false);
-      delete window[callbackName];
+      setMessage(
+        '印刷実行の通信に失敗しました。Webアプリのデプロイ反映、またはApps Scriptの権限を確認してください。',
+        false
+      );
+
+      try {
+        delete window[callbackName];
+      } catch (e) {}
+
       script.remove();
     };
 
