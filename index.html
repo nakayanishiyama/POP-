@@ -222,7 +222,7 @@
 
     <div class="small-note">
       JANを続けて登録し、最後に「印刷実行」を押してください。<br>
-      印刷実行を押すまでPC側ではPDF作成されません。
+      登録後は自動で次のJAN読取に戻ります。
     </div>
 
     <div id="message"></div>
@@ -236,7 +236,7 @@
   </div>
 
 <script>
-  // ここは必ず、さっき action=version が通った新しいWebアプリURLにする
+  // 必ず、action=version が通った新しいWebアプリURLにする
   const WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbxVYW0Pw2lVmMtqnssX_X47l2wfIerbwPj9W2nWeplQD1vU0TalfPXFEkYU0QwFL8I/exec';
   const SECRET_KEY = 'pop2026';
 
@@ -359,11 +359,43 @@
     });
   }
 
+  function blurAllInputs() {
+    const active = document.activeElement;
+
+    if (active && typeof active.blur === 'function') {
+      active.blur();
+    }
+
+    document.getElementById('jan').blur();
+    document.getElementById('price').blur();
+    document.getElementById('count').blur();
+    document.getElementById('note').blur();
+  }
+
+  function scrollToScanArea() {
+    const scanButton = document.getElementById('scanButton');
+
+    if (scanButton) {
+      scanButton.scrollIntoView({
+        behavior: 'smooth',
+        block: 'center'
+      });
+    } else {
+      window.scrollTo({
+        top: 0,
+        behavior: 'smooth'
+      });
+    }
+  }
+
   function startScan() {
     if (scanning) {
       setMessage('すでにカメラ起動中です', true);
       return;
     }
+
+    blurAllInputs();
+    scrollToScanArea();
 
     html5QrCode = new Html5Qrcode("reader");
 
@@ -403,7 +435,7 @@
       setMessage('カメラ起動中。バーコードを枠に合わせてください。', true);
     }).catch(function(err) {
       scanning = false;
-      setMessage('カメラを起動できません：' + String(err), false);
+      setMessage('カメラを起動できません。JANを手入力するか、もう一度「JANをカメラで読む」を押してください。', false);
     });
   }
 
@@ -485,6 +517,8 @@
       return;
     }
 
+    blurAllInputs();
+
     submitting = true;
     submitButton.disabled = true;
     submitButton.textContent = '登録中...';
@@ -536,7 +570,7 @@
         data.jan +
         ' / ' +
         getPriceDisplay(data.price) +
-        '　※まだ印刷待ちではありません',
+        '　次のJANを読み取れます。',
         true
       );
 
@@ -582,6 +616,9 @@
       setMessage('まだ登録されたJANがありません', false);
       return;
     }
+
+    stopScan();
+    blurAllInputs();
 
     const printButton = document.getElementById('printButton');
 
@@ -657,27 +694,18 @@
     }, 5000);
   }
 
-  function focusScanButton() {
-    setTimeout(function() {
-      const scanButton = document.getElementById('scanButton');
-
-      if (scanButton) {
-        scanButton.focus();
-        scanButton.scrollIntoView({
-          behavior: 'smooth',
-          block: 'center'
-        });
-      }
-    }, 300);
-  }
-
   function clearFormAfterSubmit() {
     document.getElementById('jan').value = '';
     document.getElementById('price').value = '';
     document.getElementById('count').value = '1';
     document.getElementById('note').value = '';
 
-    focusScanButton();
+    blurAllInputs();
+    scrollToScanArea();
+
+    setTimeout(function() {
+      startScan();
+    }, 700);
   }
 
   function clearForm() {
@@ -686,8 +714,10 @@
     document.getElementById('count').value = '1';
     document.getElementById('note').value = '';
 
+    blurAllInputs();
+    scrollToScanArea();
+
     setMessage('入力をクリアしました', true);
-    focusScanButton();
   }
 
   function addHistory(data) {
