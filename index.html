@@ -482,15 +482,14 @@
     script.src = WEB_APP_URL + '?' + params.toString();
 
     script.onerror = function() {
-      submitting = false;
-      submitButton.disabled = false;
-      submitButton.textContent = '登録する';
+     submitting = false;
+     submitButton.disabled = false;
+     submitButton.textContent = '登録する';
 
-      setMessage('登録通信に失敗しました', false);
-      delete window[callbackName];
-      script.remove();
+     setMessage('登録通信に失敗しました。通信先URL：' + script.src, false);
+     delete window[callbackName];
+     script.remove();  
     };
-
     document.body.appendChild(script);
   }
 
