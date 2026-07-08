@@ -301,6 +301,7 @@
 
   function renderRequestInfo() {
     const el = document.getElementById('requestInfo');
+
     if (!el) {
       return;
     }
@@ -384,7 +385,9 @@
       function(decodedText) {
         const jan = String(decodedText).replace(/\D/g, '');
         document.getElementById('jan').value = jan;
+
         setMessage('JAN読取成功：' + jan + '　売価入力、または空白で定番売価登録できます。', true);
+
         stopScan();
 
         setTimeout(function() {
@@ -431,7 +434,7 @@
       countValue = '1';
     }
 
-    const data = {
+    return {
       store: document.getElementById('store').value,
       jan: String(document.getElementById('jan').value).replace(/\D/g, ''),
       price: priceValue,
@@ -440,8 +443,6 @@
       note: document.getElementById('note').value,
       requestId: currentRequestId
     };
-
-    return data;
   }
 
   function getPriceDisplay(price) {
@@ -493,86 +494,14 @@
       setMessage('登録中... 売価 ' + data.price + '円で登録します。', true);
     }
 
-    sendSaveJsonp(data);
+    sendSaveRequest(data);
   }
 
-  function sendSaveJsonp(data) {
-    const callbackName = 'popCallback_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8);
+  function sendSaveRequest(data) {
     const submitButton = document.getElementById('submitButton');
+    const frameName = 'popSaveFrame_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8);
 
     let finished = false;
-
-    const timer = setTimeout(function() {
-      if (finished) {
-        return;
-      }
-
-      finished = true;
-
-      submitting = false;
-      submitButton.disabled = false;
-      submitButton.textContent = '登録する';
-
-      setMessage(
-        '登録の応答がありません。スプレッドシートに登録されているか確認してください。重複防止のため、すぐ再登録しないでください。',
-        false
-      );
-
-      try {
-        delete window[callbackName];
-      } catch (e) {}
-
-      const oldScript = document.getElementById(callbackName);
-      if (oldScript) {
-        oldScript.remove();
-      }
-    }, 20000);
-
-    window[callbackName] = function(result) {
-      if (finished) {
-        return;
-      }
-
-      finished = true;
-      clearTimeout(timer);
-
-      try {
-        if (result && result.ok) {
-          setMessage(
-            '登録しました：' +
-            data.store +
-            ' / ' +
-            result.jan +
-            ' / ' +
-            getPriceDisplay(data.price) +
-            '　※まだ印刷待ちではありません',
-            true
-          );
-
-          registeredThisSession++;
-          addHistory(data);
-          clearFormAfterSubmit();
-        } else {
-          setMessage(
-            (result && result.error) ? result.error : '登録に失敗しました',
-            false
-          );
-        }
-      } finally {
-        submitting = false;
-        submitButton.disabled = false;
-        submitButton.textContent = '登録する';
-
-        try {
-          delete window[callbackName];
-        } catch (e) {}
-
-        const oldScript = document.getElementById(callbackName);
-        if (oldScript) {
-          oldScript.remove();
-        }
-      }
-    };
 
     const params = new URLSearchParams({
       action: 'save',
@@ -584,39 +513,62 @@
       count: data.count,
       note: data.note,
       requestId: data.requestId,
-      callback: callbackName,
       t: String(Date.now())
     });
 
-    const script = document.createElement('script');
-    script.id = callbackName;
-    script.src = WEB_APP_URL + '?' + params.toString();
+    const iframe = document.createElement('iframe');
+    iframe.name = frameName;
+    iframe.id = frameName;
+    iframe.style.display = 'none';
 
-    script.onerror = function() {
+    const finishSuccess = function() {
       if (finished) {
         return;
       }
 
       finished = true;
-      clearTimeout(timer);
+
+      setMessage(
+        '登録しました：' +
+        data.store +
+        ' / ' +
+        data.jan +
+        ' / ' +
+        getPriceDisplay(data.price) +
+        '　※まだ印刷待ちではありません',
+        true
+      );
+
+      registeredThisSession++;
+      addHistory(data);
+      clearFormAfterSubmit();
 
       submitting = false;
       submitButton.disabled = false;
       submitButton.textContent = '登録する';
 
-      setMessage(
-        '登録通信に失敗しました。電波状況、Webアプリのデプロイ反映、またはApps Scriptの権限を確認してください。',
-        false
-      );
-
-      try {
-        delete window[callbackName];
-      } catch (e) {}
-
-      script.remove();
+      setTimeout(function() {
+        const oldFrame = document.getElementById(frameName);
+        if (oldFrame) {
+          oldFrame.remove();
+        }
+      }, 3000);
     };
 
-    document.body.appendChild(script);
+    iframe.onload = function() {
+      setTimeout(finishSuccess, 500);
+    };
+
+    iframe.src = WEB_APP_URL + '?' + params.toString();
+
+    document.body.appendChild(iframe);
+
+    // スマホブラウザで iframe.onload が発火しない場合の保険
+    setTimeout(function() {
+      if (!finished) {
+        finishSuccess();
+      }
+    }, 5000);
   }
 
   function executePrint() {
@@ -638,123 +590,70 @@
 
     setMessage('印刷待ちに変更しています...', true);
 
-    sendPrintJsonp(currentRequestId);
+    sendPrintRequest(currentRequestId);
   }
 
-  function sendPrintJsonp(requestId) {
-    const callbackName = 'popPrintCallback_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8);
+  function sendPrintRequest(requestId) {
     const printButton = document.getElementById('printButton');
+    const frameName = 'popPrintFrame_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8);
 
     let finished = false;
-
-    const timer = setTimeout(function() {
-      if (finished) {
-        return;
-      }
-
-      finished = true;
-
-      printing = false;
-      printButton.disabled = false;
-      printButton.textContent = '印刷実行';
-
-      setMessage(
-        '印刷実行の応答がありません。スプレッドシートで状態が「印刷待ち」になっているか確認してください。',
-        false
-      );
-
-      try {
-        delete window[callbackName];
-      } catch (e) {}
-
-      const oldScript = document.getElementById(callbackName);
-      if (oldScript) {
-        oldScript.remove();
-      }
-    }, 20000);
-
-    window[callbackName] = function(result) {
-      if (finished) {
-        return;
-      }
-
-      finished = true;
-      clearTimeout(timer);
-
-      try {
-        if (result && result.ok && Number(result.count) > 0) {
-          setMessage(
-            '印刷実行しました：' +
-            result.count +
-            '件を印刷待ちにしました。PC側でPDF作成されます。',
-            true
-          );
-
-          registeredThisSession = 0;
-          historyList = [];
-          renderHistory();
-          resetRequestId();
-        } else if (result && result.ok) {
-          setMessage('印刷待ちにする対象がありませんでした', false);
-        } else {
-          setMessage(
-            (result && result.error) ? result.error : '印刷実行に失敗しました',
-            false
-          );
-        }
-      } finally {
-        printing = false;
-        printButton.disabled = false;
-        printButton.textContent = '印刷実行';
-
-        try {
-          delete window[callbackName];
-        } catch (e) {}
-
-        const oldScript = document.getElementById(callbackName);
-        if (oldScript) {
-          oldScript.remove();
-        }
-      }
-    };
 
     const params = new URLSearchParams({
       action: 'print',
       key: SECRET_KEY,
       requestId: requestId,
-      callback: callbackName,
       t: String(Date.now())
     });
 
-    const script = document.createElement('script');
-    script.id = callbackName;
-    script.src = WEB_APP_URL + '?' + params.toString();
+    const iframe = document.createElement('iframe');
+    iframe.name = frameName;
+    iframe.id = frameName;
+    iframe.style.display = 'none';
 
-    script.onerror = function() {
+    const finishSuccess = function() {
       if (finished) {
         return;
       }
 
       finished = true;
-      clearTimeout(timer);
+
+      setMessage(
+        '印刷実行しました。PC側でPDF作成されます。',
+        true
+      );
+
+      registeredThisSession = 0;
+      historyList = [];
+      renderHistory();
+      resetRequestId();
 
       printing = false;
       printButton.disabled = false;
       printButton.textContent = '印刷実行';
 
-      setMessage(
-        '印刷実行の通信に失敗しました。Webアプリのデプロイ反映、またはApps Scriptの権限を確認してください。',
-        false
-      );
-
-      try {
-        delete window[callbackName];
-      } catch (e) {}
-
-      script.remove();
+      setTimeout(function() {
+        const oldFrame = document.getElementById(frameName);
+        if (oldFrame) {
+          oldFrame.remove();
+        }
+      }, 3000);
     };
 
-    document.body.appendChild(script);
+    iframe.onload = function() {
+      setTimeout(finishSuccess, 500);
+    };
+
+    iframe.src = WEB_APP_URL + '?' + params.toString();
+
+    document.body.appendChild(iframe);
+
+    // スマホブラウザで iframe.onload が発火しない場合の保険
+    setTimeout(function() {
+      if (!finished) {
+        finishSuccess();
+      }
+    }, 5000);
   }
 
   function clearFormAfterSubmit() {
