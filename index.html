@@ -435,55 +435,50 @@
   }
 
   function sendData(data) {
-    const submitButton = document.getElementById('submitButton');
+  const submitButton = document.getElementById('submitButton');
 
-    const params = new URLSearchParams({
-      action: 'save',
-      key: SECRET_KEY,
-      store: data.store,
-      jan: data.jan,
-      price: data.price,
-      popType: data.popType,
-      count: data.count,
-      note: data.note || '',
-      t: String(Date.now())
-    });
+  const params = new URLSearchParams({
+    action: 'save',
+    key: SECRET_KEY,
+    store: data.store,
+    jan: data.jan,
+    price: data.price,
+    popType: data.popType,
+    count: data.count,
+    note: data.note || '',
+    t: String(Date.now())
+  });
 
-    const url = WEB_APP_URL + '?' + params.toString();
+  const url = WEB_APP_URL + '?' + params.toString();
 
-    fetch(url, {
-      method: 'GET',
-      mode: 'no-cors',
-      cache: 'no-store'
-    }).then(function() {
-      // no-cors のためGASの返答内容は読めない
-      // 送信自体が通ったら画面上は送信済みとして扱う
-      setMessage(
-        '登録送信しました：' +
-        data.store +
-        ' / ' +
-        data.jan +
-        ' / ' +
-        getPriceDisplay(data.price) +
-        '　※スプレッドシートを確認してください',
-        true
-      );
+  // ここで先に画面を戻す
+  setMessage(
+    '登録送信しました：' +
+    data.store +
+    ' / ' +
+    data.jan +
+    ' / ' +
+    getPriceDisplay(data.price) +
+    '　※反映に数秒かかる場合があります',
+    true
+  );
 
-      addHistory(data);
-      clearFormAfterSubmit();
+  addHistory(data);
+  clearFormAfterSubmit();
 
-    }).catch(function(err) {
-      setMessage(
-        '登録送信に失敗しました：' + String(err) + '\n送信先：' + url,
-        false
-      );
+  submitting = false;
+  submitButton.disabled = false;
+  submitButton.textContent = '登録する';
 
-    }).finally(function() {
-      submitting = false;
-      submitButton.disabled = false;
-      submitButton.textContent = '登録する';
-    });
-  }
+  // 送信自体は裏で続ける
+  fetch(url, {
+    method: 'GET',
+    mode: 'no-cors',
+    cache: 'no-store'
+  }).catch(function(err) {
+    console.log('送信エラー:', err);
+  });
+}
 
   function clearFormAfterSubmit() {
     document.getElementById('jan').value = '';
