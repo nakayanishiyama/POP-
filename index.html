@@ -86,6 +86,14 @@
       padding: 16px;
     }
 
+    .print-btn {
+      background: #1b8f3a;
+      color: white;
+      font-size: 24px;
+      padding: 18px;
+      margin-top: 18px;
+    }
+
     .store-fixed {
       background: #fff3cd;
       border: 1px solid #ffecb5;
@@ -96,6 +104,18 @@
       margin-top: 8px;
       text-align: center;
       display: none;
+    }
+
+    .request-box {
+      background: #eef6ff;
+      border: 1px solid #c8e1ff;
+      color: #0b4f8a;
+      font-size: 14px;
+      padding: 8px;
+      border-radius: 8px;
+      margin-bottom: 12px;
+      line-height: 1.4;
+      word-break: break-word;
     }
 
     #reader {
@@ -110,7 +130,6 @@
       margin-top: 12px;
       line-height: 1.5;
       word-break: break-word;
-      white-space: pre-wrap;
     }
 
     .ok {
@@ -157,6 +176,8 @@
   <h1>POP依頼登録</h1>
 
   <div class="box">
+    <div id="requestInfo" class="request-box"></div>
+
     <button class="scan-btn" onclick="startScan()">JANをカメラで読む</button>
     <button class="stop-btn" onclick="stopScan()">カメラ停止</button>
     <div id="reader"></div>
@@ -197,24 +218,25 @@
     <button id="submitButton" class="submit-btn" onclick="submitData()">登録する</button>
     <button class="clear-btn" onclick="clearForm()">入力をクリア</button>
 
+    <button id="printButton" class="print-btn" onclick="executePrint()">印刷実行</button>
+
     <div class="small-note">
-      JAN読取後は売価入力へ移動します。<br>
-      定番売価で作る場合は、売価欄を空白のまま登録してください。<br>
-      登録後はスプレッドシートへの反映に数秒かかる場合があります。
+      JANを続けて登録し、最後に「印刷実行」を押してください。<br>
+      印刷実行を押すまでPC側ではPDF作成されません。
     </div>
 
     <div id="message"></div>
   </div>
 
   <div class="box">
-    <div class="history-title">直近送信</div>
+    <div class="history-title">直近登録</div>
     <div id="history">
-      <div class="history-item">まだ送信はありません</div>
+      <div class="history-item">まだ登録はありません</div>
     </div>
   </div>
 
 <script>
-  const WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbz6ekzBxSqXo9m0cHdyW10V1L7KSdIqyMiTvsalagmK5cb5xCaVN8dN5ACP2D4rOcVZ/exec';
+  const WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbzJH9VXJdxIJ9-wLscaE9w0LKeeosIvtJZDiT9O7RNcxHS1eiCV1BNX-8XXmm785Ow/exec';
   const SECRET_KEY = 'pop2026';
 
   const STORE_LIST = [
@@ -228,21 +250,64 @@
   let html5QrCode = null;
   let scanning = false;
   let submitting = false;
+  let printing = false;
   let historyList = [];
-
-  // 同じ内容の短時間二重登録防止
-  let lastSubmitKey = '';
-  let lastSubmitTime = 0;
+  let registeredThisSession = 0;
+  let currentRequestId = '';
 
   document.addEventListener('DOMContentLoaded', function() {
+    initRequestId();
     initStoreFromUrl();
     setupEnterSubmit();
+    renderRequestInfo();
   });
 
   function setMessage(text, ok) {
     const msg = document.getElementById('message');
     msg.textContent = text;
     msg.className = ok ? 'ok' : 'ng';
+  }
+
+  function initRequestId() {
+    const saved = sessionStorage.getItem('pop_request_id');
+
+    if (saved) {
+      currentRequestId = saved;
+      return;
+    }
+
+    resetRequestId();
+  }
+
+  function resetRequestId() {
+    currentRequestId = createRequestId();
+    sessionStorage.setItem('pop_request_id', currentRequestId);
+    renderRequestInfo();
+  }
+
+  function createRequestId() {
+    const now = new Date();
+
+    const y = now.getFullYear();
+    const m = String(now.getMonth() + 1).padStart(2, '0');
+    const d = String(now.getDate()).padStart(2, '0');
+    const hh = String(now.getHours()).padStart(2, '0');
+    const mm = String(now.getMinutes()).padStart(2, '0');
+    const ss = String(now.getSeconds()).padStart(2, '0');
+    const rand = Math.random().toString(36).slice(2, 8);
+
+    return y + m + d + '_' + hh + mm + ss + '_' + rand;
+  }
+
+  function renderRequestInfo() {
+    const el = document.getElementById('requestInfo');
+    if (!el) {
+      return;
+    }
+
+    el.innerHTML =
+      '現在の受付ID：' + currentRequestId + '<br>' +
+      'この受付IDで登録したJANだけ、印刷実行時にまとめてPDF化されます。';
   }
 
   function initStoreFromUrl() {
@@ -319,9 +384,7 @@
       function(decodedText) {
         const jan = String(decodedText).replace(/\D/g, '');
         document.getElementById('jan').value = jan;
-
         setMessage('JAN読取成功：' + jan + '　売価入力、または空白で定番売価登録できます。', true);
-
         stopScan();
 
         setTimeout(function() {
@@ -354,11 +417,9 @@
   }
 
   function getFormData() {
-    let janValue = document.getElementById('jan').value;
     let priceValue = document.getElementById('price').value;
     let countValue = document.getElementById('count').value;
 
-    janValue = String(janValue).replace(/\D/g, '');
     priceValue = String(priceValue).replace(/[^\d]/g, '');
     countValue = String(countValue).replace(/[^\d]/g, '');
 
@@ -370,14 +431,17 @@
       countValue = '1';
     }
 
-    return {
+    const data = {
       store: document.getElementById('store').value,
-      jan: janValue,
+      jan: String(document.getElementById('jan').value).replace(/\D/g, ''),
       price: priceValue,
       popType: document.getElementById('popType').value,
       count: countValue,
-      note: document.getElementById('note').value
+      note: document.getElementById('note').value,
+      requestId: currentRequestId
     };
+
+    return data;
   }
 
   function getPriceDisplay(price) {
@@ -394,6 +458,7 @@
       return;
     }
 
+    const submitButton = document.getElementById('submitButton');
     const data = getFormData();
 
     if (!data.store) {
@@ -418,30 +483,56 @@
       return;
     }
 
-    // 同じ店舗・JAN・売価・POP種類を8秒以内に連続送信しない
-    const submitKey = data.store + '|' + data.jan + '|' + data.price + '|' + data.popType;
-    const nowTime = Date.now();
+    submitting = true;
+    submitButton.disabled = true;
+    submitButton.textContent = '登録中...';
 
-    if (submitKey === lastSubmitKey && nowTime - lastSubmitTime < 8000) {
-      setMessage('同じ内容の連続登録を防止しました。次の商品を読み取ってください。', false);
-      clearFormAfterSubmit();
-      return;
+    if (Number(data.price) <= 0) {
+      setMessage('登録中... 定番売価で登録します。', true);
+    } else {
+      setMessage('登録中... 売価 ' + data.price + '円で登録します。', true);
     }
 
-    lastSubmitKey = submitKey;
-    lastSubmitTime = nowTime;
-
-    submitting = true;
-
-    const submitButton = document.getElementById('submitButton');
-    submitButton.disabled = true;
-    submitButton.textContent = '送信中...';
-
-    sendData(data);
+    sendSaveJsonp(data);
   }
 
-  function sendData(data) {
+  function sendSaveJsonp(data) {
+    const callbackName = 'popCallback_' + Date.now();
     const submitButton = document.getElementById('submitButton');
+
+    window[callbackName] = function(result) {
+      try {
+        if (result.ok) {
+          setMessage(
+            '登録しました：' +
+            data.store +
+            ' / ' +
+            result.jan +
+            ' / ' +
+            getPriceDisplay(data.price) +
+            '　※まだ印刷待ちではありません',
+            true
+          );
+
+          registeredThisSession++;
+          addHistory(data);
+          clearFormAfterSubmit();
+        } else {
+          setMessage(result.error || '登録に失敗しました', false);
+        }
+      } finally {
+        submitting = false;
+        submitButton.disabled = false;
+        submitButton.textContent = '登録する';
+
+        delete window[callbackName];
+
+        const oldScript = document.getElementById(callbackName);
+        if (oldScript) {
+          oldScript.remove();
+        }
+      }
+    };
 
     const params = new URLSearchParams({
       action: 'save',
@@ -451,57 +542,119 @@
       price: data.price,
       popType: data.popType,
       count: data.count,
-      note: data.note || '',
-      t: String(Date.now())
+      note: data.note,
+      requestId: data.requestId,
+      callback: callbackName
     });
 
-    const url = WEB_APP_URL + '?' + params.toString();
+    const script = document.createElement('script');
+    script.id = callbackName;
+    script.src = WEB_APP_URL + '?' + params.toString();
 
-    // no-corsではGASの返答内容は読めないため、送信開始時点で画面を次に進める
-    setMessage(
-      '登録送信しました：' +
-      data.store +
-      ' / ' +
-      data.jan +
-      ' / ' +
-      getPriceDisplay(data.price) +
-      '　※反映に数秒かかる場合があります',
-      true
-    );
+    script.onerror = function() {
+      submitting = false;
+      submitButton.disabled = false;
+      submitButton.textContent = '登録する';
 
-    addHistory(data);
-    clearFormAfterSubmit();
+      setMessage('登録通信に失敗しました', false);
+      delete window[callbackName];
+      script.remove();
+    };
 
-    submitting = false;
-    submitButton.disabled = false;
-    submitButton.textContent = '登録する';
+    document.body.appendChild(script);
+  }
 
-    fetch(url, {
-      method: 'GET',
-      mode: 'no-cors',
-      cache: 'no-store'
-    }).catch(function(err) {
-      console.log('送信エラー:', err);
+  function executePrint() {
+    if (printing) {
+      setMessage('印刷実行中です。少し待ってください。', true);
+      return;
+    }
+
+    if (registeredThisSession <= 0) {
+      setMessage('まだ登録されたJANがありません', false);
+      return;
+    }
+
+    const printButton = document.getElementById('printButton');
+
+    printing = true;
+    printButton.disabled = true;
+    printButton.textContent = '印刷待ち登録中...';
+
+    setMessage('印刷待ちに変更しています...', true);
+
+    sendPrintJsonp(currentRequestId);
+  }
+
+  function sendPrintJsonp(requestId) {
+    const callbackName = 'popPrintCallback_' + Date.now();
+    const printButton = document.getElementById('printButton');
+
+    window[callbackName] = function(result) {
+      try {
+        if (result.ok && Number(result.count) > 0) {
+          setMessage(
+            '印刷実行しました：' +
+            result.count +
+            '件を印刷待ちにしました。PC側でPDF作成されます。',
+            true
+          );
+
+          registeredThisSession = 0;
+          historyList = [];
+          renderHistory();
+          resetRequestId();
+        } else if (result.ok) {
+          setMessage('印刷待ちにする対象がありませんでした', false);
+        } else {
+          setMessage(result.error || '印刷実行に失敗しました', false);
+        }
+      } finally {
+        printing = false;
+        printButton.disabled = false;
+        printButton.textContent = '印刷実行';
+
+        delete window[callbackName];
+
+        const oldScript = document.getElementById(callbackName);
+        if (oldScript) {
+          oldScript.remove();
+        }
+      }
+    };
+
+    const params = new URLSearchParams({
+      action: 'print',
+      key: SECRET_KEY,
+      requestId: requestId,
+      callback: callbackName
     });
+
+    const script = document.createElement('script');
+    script.id = callbackName;
+    script.src = WEB_APP_URL + '?' + params.toString();
+
+    script.onerror = function() {
+      printing = false;
+      printButton.disabled = false;
+      printButton.textContent = '印刷実行';
+
+      setMessage('印刷実行の通信に失敗しました', false);
+      delete window[callbackName];
+      script.remove();
+    };
+
+    document.body.appendChild(script);
   }
 
   function clearFormAfterSubmit() {
-    const janInput = document.getElementById('jan');
-    const priceInput = document.getElementById('price');
-    const countInput = document.getElementById('count');
-    const noteInput = document.getElementById('note');
-
-    janInput.value = '';
-    priceInput.value = '';
-    countInput.value = '1';
-    noteInput.value = '';
+    document.getElementById('jan').value = '';
+    document.getElementById('price').value = '';
+    document.getElementById('count').value = '1';
+    document.getElementById('note').value = '';
 
     setTimeout(function() {
-      janInput.value = '';
-      priceInput.value = '';
-      countInput.value = '1';
-      noteInput.value = '';
-      janInput.focus();
+      document.getElementById('jan').focus();
     }, 300);
   }
 
@@ -538,7 +691,7 @@
     const history = document.getElementById('history');
 
     if (historyList.length === 0) {
-      history.innerHTML = '<div class="history-item">まだ送信はありません</div>';
+      history.innerHTML = '<div class="history-item">まだ登録はありません</div>';
       return;
     }
 
