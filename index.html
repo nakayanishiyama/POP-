@@ -158,17 +158,6 @@
       margin-top: 6px;
       line-height: 1.4;
     }
-
-    .price-note {
-      background: #eef6ff;
-      border: 1px solid #c8e1ff;
-      color: #0b4f8a;
-      font-size: 14px;
-      padding: 8px;
-      border-radius: 8px;
-      margin-top: 6px;
-      line-height: 1.4;
-    }
   </style>
 </head>
 
@@ -199,10 +188,6 @@
 
     <label>売価（税抜）</label>
     <input id="price" type="text" inputmode="numeric" placeholder="空白または0なら定番売価" enterkeyhint="done">
-    <div class="price-note">
-      売価を空白または0で登録すると、商品マスタの「税抜売価」を使用します。<br>
-      値下げ価格を指定する場合だけ金額を入力してください。
-    </div>
 
     <label>POP種類</label>
     <select id="popType">
@@ -236,7 +221,6 @@
   </div>
 
 <script>
-  // 必ず、action=version が通った新しいWebアプリURLにする
   const WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbxVYW0Pw2lVmMtqnssX_X47l2wfIerbwPj9W2nWeplQD1vU0TalfPXFEkYU0QwFL8I/exec';
   const SECRET_KEY = 'pop2026';
 
@@ -598,7 +582,6 @@
 
     document.body.appendChild(iframe);
 
-    // スマホブラウザで iframe.onload が発火しない場合の保険
     setTimeout(function() {
       if (!finished) {
         finishSuccess();
@@ -686,7 +669,6 @@
 
     document.body.appendChild(iframe);
 
-    // スマホブラウザで iframe.onload が発火しない場合の保険
     setTimeout(function() {
       if (!finished) {
         finishSuccess();
