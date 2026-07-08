@@ -178,7 +178,7 @@
   <div class="box">
     <div id="requestInfo" class="request-box"></div>
 
-    <button class="scan-btn" onclick="startScan()">JANをカメラで読む</button>
+    <button id="scanButton" class="scan-btn" onclick="startScan()">JANをカメラで読む</button>
     <button class="stop-btn" onclick="stopScan()">カメラ停止</button>
     <div id="reader"></div>
   </div>
@@ -236,6 +236,7 @@
   </div>
 
 <script>
+  // ここは必ず、さっき action=version が通った新しいWebアプリURLにする
   const WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbxVYW0Pw2lVmMtqnssX_X47l2wfIerbwPj9W2nWeplQD1vU0TalfPXFEkYU0QwFL8I/exec';
   const SECRET_KEY = 'pop2026';
 
@@ -656,15 +657,27 @@
     }, 5000);
   }
 
+  function focusScanButton() {
+    setTimeout(function() {
+      const scanButton = document.getElementById('scanButton');
+
+      if (scanButton) {
+        scanButton.focus();
+        scanButton.scrollIntoView({
+          behavior: 'smooth',
+          block: 'center'
+        });
+      }
+    }, 300);
+  }
+
   function clearFormAfterSubmit() {
     document.getElementById('jan').value = '';
     document.getElementById('price').value = '';
     document.getElementById('count').value = '1';
     document.getElementById('note').value = '';
 
-    setTimeout(function() {
-      document.getElementById('jan').focus();
-    }, 300);
+    focusScanButton();
   }
 
   function clearForm() {
@@ -674,7 +687,7 @@
     document.getElementById('note').value = '';
 
     setMessage('入力をクリアしました', true);
-    document.getElementById('jan').focus();
+    focusScanButton();
   }
 
   function addHistory(data) {
