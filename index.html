@@ -176,7 +176,7 @@
     <input id="jan" type="text" inputmode="numeric" placeholder="JANコード">
 
     <label>売価（税抜）</label>
-    <input id="price" type="number" inputmode="numeric" placeholder="空白または0なら定番売価" enterkeyhint="done">
+    <input id="price" type="text" inputmode="numeric" placeholder="空白または0なら定番売価" enterkeyhint="done">
     <div class="price-note">
       売価を空白または0で登録すると、商品マスタの「税抜売価」を使用します。<br>
       値下げ価格を指定する場合だけ金額を入力してください。
@@ -188,7 +188,7 @@
     </select>
 
     <label>枚数</label>
-    <input id="count" type="number" inputmode="numeric" value="1">
+    <input id="count" type="text" inputmode="numeric" value="1">
 
     <label>備考</label>
     <textarea id="note" rows="2" placeholder="任意"></textarea>
@@ -197,7 +197,7 @@
     <button class="clear-btn" onclick="clearForm()">入力をクリア</button>
 
     <div class="small-note">
-      JAN読取後は売価入力へ移動します。売価入力後、Enterで登録できます。<br>
+      JAN読取後は売価入力へ移動します。<br>
       定番売価で作る場合は、売価欄を空白のまま登録してください。
     </div>
 
@@ -225,7 +225,6 @@
 
   let html5QrCode = null;
   let scanning = false;
-  let storeFixed = false;
   let submitting = false;
   let historyList = [];
 
@@ -248,7 +247,6 @@
     const fixedMessage = document.getElementById('storeFixedMessage');
 
     if (!storeParam) {
-      storeFixed = false;
       storeSelect.disabled = false;
       fixedMessage.style.display = 'none';
       return;
@@ -259,14 +257,12 @@
     if (STORE_LIST.includes(decodedStore)) {
       storeSelect.value = decodedStore;
       storeSelect.disabled = true;
-      storeFixed = true;
 
       fixedMessage.textContent = 'この端末の店舗：' + decodedStore;
       fixedMessage.style.display = 'block';
 
       setMessage('店舗を固定しました：' + decodedStore, true);
     } else {
-      storeFixed = false;
       storeSelect.disabled = false;
       fixedMessage.style.display = 'none';
 
@@ -317,7 +313,7 @@
       function(decodedText) {
         const jan = String(decodedText).replace(/\D/g, '');
         document.getElementById('jan').value = jan;
-        setMessage('JAN読取成功：' + jan + '　売価を入力、または空白で定番売価登録できます。', true);
+        setMessage('JAN読取成功：' + jan + '　売価入力、または空白で定番売価登録できます。', true);
         stopScan();
 
         setTimeout(function() {
@@ -350,28 +346,30 @@
   }
 
   function getFormData() {
+    let priceValue = document.getElementById('price').value;
+    let countValue = document.getElementById('count').value;
+
+    priceValue = String(priceValue).replace(/[^\d]/g, '');
+    countValue = String(countValue).replace(/[^\d]/g, '');
+
+    // ここが重要：
+    // 売価空白は必ず0として送る
+    if (priceValue === '') {
+      priceValue = '0';
+    }
+
+    if (countValue === '') {
+      countValue = '1';
+    }
+
     const data = {
       store: document.getElementById('store').value,
-      jan: document.getElementById('jan').value,
-      price: document.getElementById('price').value,
+      jan: String(document.getElementById('jan').value).replace(/\D/g, ''),
+      price: priceValue,
       popType: document.getElementById('popType').value,
-      count: document.getElementById('count').value,
+      count: countValue,
       note: document.getElementById('note').value
     };
-
-    data.jan = String(data.jan).replace(/\D/g, '');
-    data.price = String(data.price).replace(/[^\d]/g, '');
-    data.count = String(data.count).replace(/[^\d]/g, '');
-
-    // 売価空白は0として送る
-    // PC側 create_pop.py で 0 の場合は商品マスタの「税抜売価」を使う
-    if (data.price === '') {
-      data.price = '0';
-    }
-
-    if (!data.count) {
-      data.count = '1';
-    }
 
     return data;
   }
@@ -409,13 +407,8 @@
       return;
     }
 
-    // 売価は空白または0でもOK
-    // ただし、マイナスや変な文字は getFormData 側で数字以外除去済み
-    if (Number(data.price) < 0) {
-      setMessage('売価が正しくありません', false);
-      document.getElementById('price').focus();
-      return;
-    }
+    // 売価チェックはしない
+    // 0 または 空白由来の0 は定番売価扱い
 
     if (!data.count || Number(data.count) <= 0) {
       setMessage('枚数を入力してください', false);
