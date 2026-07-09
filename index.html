@@ -158,6 +158,29 @@
       margin-top: 6px;
       line-height: 1.4;
     }
+
+    .product-status {
+      font-size: 14px;
+      margin-top: 8px;
+      line-height: 1.4;
+      padding: 8px;
+      border-radius: 8px;
+      display: none;
+    }
+
+    .product-hit {
+      display: block;
+      background: #e8f5e9;
+      border: 1px solid #b7dfb9;
+      color: #1b5e20;
+    }
+
+    .product-miss {
+      display: block;
+      background: #fff3cd;
+      border: 1px solid #ffecb5;
+      color: #7a5200;
+    }
   </style>
 </head>
 
@@ -185,6 +208,17 @@
 
     <label>JANコード</label>
     <input id="jan" type="text" inputmode="numeric" placeholder="JANコード">
+
+    <div id="productMessage" class="product-status"></div>
+
+    <label>メーカー</label>
+    <input id="maker" type="text" placeholder="JAN読取後に自動入力。必要なら修正可">
+
+    <label>商品名</label>
+    <input id="productName" type="text" placeholder="JAN読取後に自動入力。必要なら修正可">
+
+    <label>規格</label>
+    <input id="spec" type="text" placeholder="JAN読取後に自動入力。必要なら修正可">
 
     <label>売価（税抜）</label>
     <input id="price" type="text" inputmode="numeric" placeholder="空白または0なら定番売価" enterkeyhint="done">
@@ -223,6 +257,7 @@
 <script>
   const WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbxVYW0Pw2lVmMtqnssX_X47l2wfIerbwPj9W2nWeplQD1vU0TalfPXFEkYU0QwFL8I/exec';
   const SECRET_KEY = 'pop2026';
+  const MASTER_JSON_URL = 'master.json?v=20260709';
 
   const STORE_LIST = [
     '海老名',
@@ -239,11 +274,18 @@
   let historyList = [];
   let registeredThisSession = 0;
   let currentRequestId = '';
+  let itemMaster = {};
+  let itemMasterLoaded = false;
+  let itemMasterLoading = false;
+  let itemMasterPromise = null;
+  let lastLookupJan = '';
 
   document.addEventListener('DOMContentLoaded', function() {
     initRequestId();
     initStoreFromUrl();
     setupEnterSubmit();
+    setupProductLookupEvents();
+    loadMasterJson();
     renderRequestInfo();
   });
 
@@ -251,6 +293,126 @@
     const msg = document.getElementById('message');
     msg.textContent = text;
     msg.className = ok ? 'ok' : 'ng';
+  }
+
+  function setProductMessage(text, ok) {
+    const el = document.getElementById('productMessage');
+
+    if (!el) {
+      return;
+    }
+
+    if (!text) {
+      el.textContent = '';
+      el.className = 'product-status';
+      return;
+    }
+
+    el.textContent = text;
+    el.className = ok ? 'product-status product-hit' : 'product-status product-miss';
+  }
+
+  function loadMasterJson() {
+    if (itemMasterPromise) {
+      return itemMasterPromise;
+    }
+
+    itemMasterLoading = true;
+
+    itemMasterPromise = fetch(MASTER_JSON_URL)
+      .then(function(response) {
+        if (!response.ok) {
+          throw new Error('master.json load failed: ' + response.status);
+        }
+
+        return response.json();
+      })
+      .then(function(data) {
+        itemMaster = data || {};
+        itemMasterLoaded = true;
+        itemMasterLoading = false;
+        return itemMaster;
+      })
+      .catch(function(err) {
+        itemMaster = {};
+        itemMasterLoaded = false;
+        itemMasterLoading = false;
+        setProductMessage('商品マスタを読み込めませんでした。商品名などは手入力できます。', false);
+        return itemMaster;
+      });
+
+    return itemMasterPromise;
+  }
+
+  function setupProductLookupEvents() {
+    const janInput = document.getElementById('jan');
+
+    janInput.addEventListener('input', function() {
+      const jan = String(janInput.value).replace(/\D/g, '');
+
+      if (jan.length === 8 || jan.length === 13) {
+        lookupProductByJan(false);
+      }
+    });
+
+    janInput.addEventListener('change', function() {
+      lookupProductByJan(true);
+    });
+
+    janInput.addEventListener('blur', function() {
+      lookupProductByJan(false);
+    });
+  }
+
+  function clearProductFields() {
+    document.getElementById('maker').value = '';
+    document.getElementById('productName').value = '';
+    document.getElementById('spec').value = '';
+    setProductMessage('', true);
+    lastLookupJan = '';
+  }
+
+  function fillProductFields(item) {
+    document.getElementById('maker').value = item.maker || '';
+    document.getElementById('productName').value = item.name || '';
+    document.getElementById('spec').value = item.spec || '';
+  }
+
+  function lookupProductByJan(force) {
+    const jan = String(document.getElementById('jan').value).replace(/\D/g, '');
+
+    if (!jan) {
+      clearProductFields();
+      return;
+    }
+
+    if (!force && jan === lastLookupJan) {
+      return;
+    }
+
+    lastLookupJan = jan;
+
+    if (jan.length !== 8 && jan.length !== 13) {
+      setProductMessage('JANは8桁または13桁で確認します。', false);
+      return;
+    }
+
+    setProductMessage('商品情報を確認中...', true);
+
+    loadMasterJson().then(function(master) {
+      const item = master[jan];
+
+      if (!item) {
+        document.getElementById('maker').value = '';
+        document.getElementById('productName').value = '';
+        document.getElementById('spec').value = '';
+        setProductMessage('商品マスタに見つかりません。商品名などを手入力できます。', false);
+        return;
+      }
+
+      fillProductFields(item);
+      setProductMessage('商品情報を自動入力しました。必要なら修正できます。', true);
+    });
   }
 
   function initRequestId() {
@@ -338,6 +500,7 @@
     document.getElementById('jan').addEventListener('keydown', function(e) {
       if (e.key === 'Enter') {
         e.preventDefault();
+        lookupProductByJan(true);
         document.getElementById('price').focus();
       }
     });
@@ -351,6 +514,9 @@
     }
 
     document.getElementById('jan').blur();
+    document.getElementById('maker').blur();
+    document.getElementById('productName').blur();
+    document.getElementById('spec').blur();
     document.getElementById('price').blur();
     document.getElementById('count').blur();
     document.getElementById('note').blur();
@@ -402,8 +568,9 @@
       function(decodedText) {
         const jan = String(decodedText).replace(/\D/g, '');
         document.getElementById('jan').value = jan;
+        lookupProductByJan(true);
 
-        setMessage('JAN読取成功：' + jan + '　売価入力、または空白で定番売価登録できます。', true);
+        setMessage('JAN読取成功：' + jan + '　商品情報を確認しています。売価入力、または空白で定番売価登録できます。', true);
 
         stopScan();
 
@@ -454,6 +621,9 @@
     return {
       store: document.getElementById('store').value,
       jan: String(document.getElementById('jan').value).replace(/\D/g, ''),
+      maker: document.getElementById('maker').value,
+      productName: document.getElementById('productName').value,
+      spec: document.getElementById('spec').value,
       price: priceValue,
       popType: document.getElementById('popType').value,
       count: countValue,
@@ -527,6 +697,9 @@
       key: SECRET_KEY,
       store: data.store,
       jan: data.jan,
+      maker: data.maker,
+      productName: data.productName,
+      spec: data.spec,
       price: data.price,
       popType: data.popType,
       count: data.count,
@@ -552,6 +725,7 @@
         data.store +
         ' / ' +
         data.jan +
+        (data.productName ? ' / ' + data.productName : '') +
         ' / ' +
         getPriceDisplay(data.price) +
         '　次のJANを読み取れます。',
@@ -678,6 +852,7 @@
 
   function clearFormAfterSubmit() {
     document.getElementById('jan').value = '';
+    clearProductFields();
     document.getElementById('price').value = '';
     document.getElementById('count').value = '1';
     document.getElementById('note').value = '';
@@ -692,6 +867,7 @@
 
   function clearForm() {
     document.getElementById('jan').value = '';
+    clearProductFields();
     document.getElementById('price').value = '';
     document.getElementById('count').value = '1';
     document.getElementById('note').value = '';
@@ -712,6 +888,9 @@
       time: timeText,
       store: data.store,
       jan: data.jan,
+      maker: data.maker,
+      productName: data.productName,
+      spec: data.spec,
       price: data.price,
       count: data.count
     });
@@ -734,6 +913,7 @@
         item.time + '　' +
         item.store + '　' +
         item.jan + '　' +
+        (item.productName ? item.productName + '　' : '') +
         getPriceDisplay(item.price) + '　' +
         item.count + '枚' +
         '</div>';
