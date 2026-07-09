@@ -319,7 +319,7 @@
 
     itemMasterLoading = true;
 
-    itemMasterPromise = fetch(MASTER_JSON_URL)
+    itemMasterPromise = fetch("master.json?v=" + Date.now())
       .then(function(response) {
         if (!response.ok) {
           throw new Error('master.json load failed: ' + response.status);
