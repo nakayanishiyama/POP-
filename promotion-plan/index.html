@@ -174,7 +174,7 @@
       refreshButton.addEventListener('click', manualRefreshStatuses);
       window.addEventListener('message', handlePostMessage);
       renderHistory();
-      refreshAllStatuses();
+      refreshAllStatuses(true);
       schedulePolling();
     });
 
@@ -376,7 +376,7 @@
       const button = document.getElementById('refreshButton');
       const message = document.getElementById('refreshMessage');
       const targets = histories.filter(function (item) {
-        return item.request_id && !TERMINAL_STATUSES.includes(item.status);
+        return Boolean(item.request_id);
       });
 
       button.disabled = true;
@@ -401,9 +401,10 @@
       });
     }
 
-    function refreshAllStatuses() {
+    function refreshAllStatuses(includeTerminal) {
       const targets = histories.filter(function (item) {
-        return item.request_id && !TERMINAL_STATUSES.includes(item.status);
+        if (!item.request_id) return false;
+        return includeTerminal || !TERMINAL_STATUSES.includes(item.status);
       });
       if (targets.length === 0) {
         renderHistory();
