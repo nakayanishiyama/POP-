@@ -246,13 +246,7 @@
         if (!submitPending || submitPending.nonce !== nonce) {
           return;
         }
-        submitPending = null;
-        setSubmitting(false);
-        updateLocalItem(requestId, {
-          status: '送信エラー',
-          error: '受付結果を確認できませんでした。通信環境を確認して、状態更新を押してください。'
-        });
-        showMessage('受付結果を確認できませんでした。状態更新を押してください。', false);
+        verifySubmittedRequest(requestId, nonce);
       }, SUBMIT_TIMEOUT_MS);
 
       submitPending = { requestId: requestId, nonce: nonce, timeoutId: timeoutId };
@@ -292,7 +286,14 @@
       if (!isGoogleScriptOrigin(event.origin)) {
         return;
       }
-      const message = event.data;
+      let message = event.data;
+      if (typeof message === 'string') {
+        try {
+          message = JSON.parse(message);
+        } catch (error) {
+          return;
+        }
+      }
       if (!message || message.source !== 'promotion-plan-api' || !submitPending) {
         return;
       }
@@ -321,7 +322,48 @@
     }
 
     function isGoogleScriptOrigin(origin) {
-      return /^https:\/\/(script\.google\.com|[a-z0-9-]+\.googleusercontent\.com)$/.test(origin || '');
+      return /^https:\/\/(?:script\.google\.com|(?:[a-z0-9-]+\.)*googleusercontent\.com)$/i.test(origin || '');
+    }
+
+    function verifySubmittedRequest(requestId, nonce) {
+      jsonp({ action: 'status', request_id: requestId })
+        .then(function (payload) {
+          if (!submitPending || submitPending.nonce !== nonce) {
+            return;
+          }
+
+          window.clearTimeout(submitPending.timeoutId);
+          submitPending = null;
+          setSubmitting(false);
+
+          if (payload && payload.ok) {
+            applyServerPayload(requestId, payload);
+            showMessage('受付しました。完了すると履歴に「販促計画を開く」ボタンが表示されます。', true);
+            return;
+          }
+
+          updateLocalItem(requestId, {
+            status: '送信エラー',
+            error: payload && payload.error
+              ? payload.error
+              : '受付結果を確認できませんでした。通信環境を確認して、状態更新を押してください。'
+          });
+          showMessage('受付結果を確認できませんでした。状態更新を押してください。', false);
+        })
+        .catch(function () {
+          if (!submitPending || submitPending.nonce !== nonce) {
+            return;
+          }
+
+          window.clearTimeout(submitPending.timeoutId);
+          submitPending = null;
+          setSubmitting(false);
+          updateLocalItem(requestId, {
+            status: '送信エラー',
+            error: '受付結果を確認できませんでした。通信環境を確認して、状態更新を押してください。'
+          });
+          showMessage('受付結果を確認できませんでした。状態更新を押してください。', false);
+        });
     }
 
     function refreshAllStatuses() {
@@ -341,7 +383,12 @@
       jsonp({ action: 'status', request_id: requestId })
         .then(function (payload) {
           if (payload && payload.ok) {
+            const current = histories.find(function (item) { return item.request_id === requestId; });
+            const wasUnconfirmed = current && (current.status === '送信中' || current.status === '送信エラー');
             applyServerPayload(requestId, payload);
+            if (wasUnconfirmed) {
+              showMessage('受付を確認しました。完了すると履歴に「販促計画を開く」ボタンが表示されます。', true);
+            }
           } else if (payload && payload.found === false) {
             const current = histories.find(function (item) { return item.request_id === requestId; });
             if (current && current.status !== '送信中') {
