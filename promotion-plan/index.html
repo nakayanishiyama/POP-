@@ -59,7 +59,9 @@
     button { border: 0; font-weight: 800; cursor: pointer; }
     button:disabled { cursor: default; opacity: .55; }
     .primary { background: #d44736; color: white; margin-top: 18px; font-size: 20px; min-height: 56px; }
-    .secondary { background: #e8eef3; color: #24435d; }
+    .secondary { background: #1f4e78; color: white; box-shadow: 0 2px 5px rgba(31,78,120,.2); }
+    .secondary:active { transform: translateY(1px); }
+    .refresh-message { min-height: 22px; margin: 4px 0 10px; font-size: 13px; font-weight: 700; color: #24435d; }
     .open-button { background: #198754; color: white; text-decoration: none; display: block; text-align: center; padding: 13px 10px; border-radius: 9px; font-weight: 800; margin-top: 10px; }
     .message { display: none; margin-top: 12px; padding: 11px; border-radius: 9px; line-height: 1.5; font-weight: 700; }
     .message.ok { display: block; background: #e8f6ec; color: #126b2e; }
@@ -138,8 +140,9 @@
     <section class="card">
       <h2>この端末の受付履歴</h2>
       <div class="history-toolbar">
-        <button id="refreshButton" class="secondary" type="button">状態を更新</button>
+        <button id="refreshButton" class="secondary" type="button">最新状態を確認</button>
       </div>
+      <div id="refreshMessage" class="refresh-message" aria-live="polite"></div>
       <div id="history" class="history-list"></div>
     </section>
   </main>
@@ -165,7 +168,10 @@
       initializeDates();
       initializeStore();
       document.getElementById('submitButton').addEventListener('click', submitRequest);
-      document.getElementById('refreshButton').addEventListener('click', refreshAllStatuses);
+      const refreshButton = document.getElementById('refreshButton');
+      refreshButton.disabled = false;
+      refreshButton.removeAttribute('disabled');
+      refreshButton.addEventListener('click', manualRefreshStatuses);
       window.addEventListener('message', handlePostMessage);
       renderHistory();
       refreshAllStatuses();
@@ -366,6 +372,35 @@
         });
     }
 
+    function manualRefreshStatuses() {
+      const button = document.getElementById('refreshButton');
+      const message = document.getElementById('refreshMessage');
+      const targets = histories.filter(function (item) {
+        return item.request_id && !TERMINAL_STATUSES.includes(item.status);
+      });
+
+      button.disabled = true;
+      button.textContent = '確認中…';
+      message.textContent = '最新状態を確認しています。';
+
+      if (targets.length === 0) {
+        renderHistory();
+        message.textContent = '更新対象の依頼はありません。';
+        button.disabled = false;
+        button.textContent = '最新状態を確認';
+        return;
+      }
+
+      Promise.allSettled(targets.map(function (item) {
+        return refreshStatus(item.request_id);
+      })).then(function () {
+        message.textContent = '状態を更新しました。';
+      }).finally(function () {
+        button.disabled = false;
+        button.textContent = '最新状態を確認';
+      });
+    }
+
     function refreshAllStatuses() {
       const targets = histories.filter(function (item) {
         return item.request_id && !TERMINAL_STATUSES.includes(item.status);
@@ -380,7 +415,7 @@
     }
 
     function refreshStatus(requestId) {
-      jsonp({ action: 'status', request_id: requestId })
+      return jsonp({ action: 'status', request_id: requestId })
         .then(function (payload) {
           if (payload && payload.ok) {
             const current = histories.find(function (item) { return item.request_id === requestId; });
