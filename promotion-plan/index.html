@@ -1,0 +1,540 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#1f4e78">
+  <title>販促計画 抽出依頼</title>
+  <style>
+    :root {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans JP", sans-serif;
+      color: #1d2630;
+      background: #eef2f5;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: #eef2f5; }
+    .header {
+      background: #1f4e78;
+      color: white;
+      padding: 18px 16px;
+      text-align: center;
+      box-shadow: 0 2px 8px rgba(0,0,0,.18);
+    }
+    .header h1 { margin: 0; font-size: 22px; }
+    .header p { margin: 6px 0 0; font-size: 13px; opacity: .9; }
+    main { max-width: 720px; margin: 0 auto; padding: 16px 12px 36px; }
+    .card {
+      background: white;
+      border-radius: 14px;
+      padding: 16px;
+      margin-bottom: 14px;
+      box-shadow: 0 2px 10px rgba(28,47,65,.1);
+    }
+    h2 { margin: 0 0 12px; font-size: 19px; }
+    label { display: block; font-weight: 700; margin: 14px 0 6px; }
+    select, input[type="date"], button {
+      width: 100%;
+      min-height: 48px;
+      border-radius: 9px;
+      border: 1px solid #b8c2cc;
+      background: white;
+      font-size: 17px;
+      padding: 10px 12px;
+    }
+    select:disabled { opacity: 1; background: #fff6d9; color: #6b4a00; font-weight: 700; }
+    .dates { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .departments { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .check {
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      min-height: 48px;
+      padding: 10px;
+      border: 1px solid #c8d1d9;
+      border-radius: 9px;
+      font-weight: 700;
+      background: #fafcfd;
+    }
+    .check input { width: 21px; height: 21px; margin: 0; }
+    button { border: 0; font-weight: 800; cursor: pointer; }
+    button:disabled { cursor: default; opacity: .55; }
+    .primary { background: #d44736; color: white; margin-top: 18px; font-size: 20px; min-height: 56px; }
+    .secondary { background: #e8eef3; color: #24435d; }
+    .open-button { background: #198754; color: white; text-decoration: none; display: block; text-align: center; padding: 13px 10px; border-radius: 9px; font-weight: 800; margin-top: 10px; }
+    .message { display: none; margin-top: 12px; padding: 11px; border-radius: 9px; line-height: 1.5; font-weight: 700; }
+    .message.ok { display: block; background: #e8f6ec; color: #126b2e; }
+    .message.ng { display: block; background: #fdebea; color: #a0211b; }
+    .small { font-size: 13px; color: #61707e; line-height: 1.5; }
+    .fixed-store { display: none; margin-top: 8px; padding: 8px; border-radius: 8px; background: #fff2c4; color: #725000; text-align: center; font-weight: 700; }
+    .history-toolbar { display: flex; gap: 8px; margin-bottom: 10px; }
+    .history-toolbar button { min-height: 42px; font-size: 14px; }
+    .history-list { display: grid; gap: 10px; }
+    .history-empty { color: #61707e; padding: 12px 2px; }
+    .history-item { border: 1px solid #d8e0e6; border-radius: 11px; padding: 12px; background: #fbfcfd; }
+    .history-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+    .history-store { font-weight: 800; font-size: 17px; }
+    .status { border-radius: 999px; padding: 5px 10px; font-weight: 800; font-size: 13px; white-space: nowrap; }
+    .status.waiting { background: #fff3cd; color: #765700; }
+    .status.processing { background: #dbeafe; color: #164e91; }
+    .status.complete { background: #dff3e4; color: #126b2e; }
+    .status.error { background: #fde2e1; color: #9e201a; }
+    .status.sending { background: #eceff2; color: #53616d; }
+    .history-detail { margin-top: 8px; font-size: 14px; line-height: 1.55; color: #455562; }
+    .history-id { word-break: break-all; font-size: 11px; color: #82909b; margin-top: 6px; }
+    .error-text { margin-top: 8px; color: #a0211b; font-weight: 700; white-space: pre-wrap; }
+    .remove-button { margin-top: 8px; min-height: 36px; font-size: 13px; background: #f0f2f4; color: #5c6872; }
+    iframe { display: none; }
+    @media (max-width: 520px) {
+      .dates { grid-template-columns: 1fr; }
+      .departments { grid-template-columns: 1fr 1fr; }
+      main { padding-left: 10px; padding-right: 10px; }
+    }
+  </style>
+</head>
+<body>
+  <header class="header">
+    <h1>販促計画 抽出依頼</h1>
+    <p>指定期間・店舗・部門の販促計画をExcelで作成します</p>
+  </header>
+
+  <main>
+    <section class="card">
+      <h2>新しい依頼</h2>
+
+      <label for="store">店舗</label>
+      <select id="store">
+        <option value="海老名">海老名</option>
+        <option value="座間入谷">座間入谷</option>
+        <option value="大沼">大沼</option>
+        <option value="寒川">寒川</option>
+        <option value="戸塚">戸塚</option>
+      </select>
+      <div id="fixedStore" class="fixed-store"></div>
+
+      <div class="dates">
+        <div>
+          <label for="startDate">開始日</label>
+          <input id="startDate" type="date">
+        </div>
+        <div>
+          <label for="endDate">終了日</label>
+          <input id="endDate" type="date">
+        </div>
+      </div>
+
+      <label>対象部門</label>
+      <div class="departments">
+        <label class="check"><input type="checkbox" name="department" value="加工食品" checked>加工食品</label>
+        <label class="check"><input type="checkbox" name="department" value="和日配" checked>和日配</label>
+        <label class="check"><input type="checkbox" name="department" value="洋日配" checked>洋日配</label>
+        <label class="check"><input type="checkbox" name="department" value="菓子" checked>菓子</label>
+      </div>
+
+      <button id="submitButton" class="primary" type="button">販促計画を依頼する</button>
+      <div id="message" class="message"></div>
+      <p class="small">完了までこの画面を開いたままにする必要はありません。依頼履歴はこの端末に保存され、次回表示時にも状態を確認できます。</p>
+    </section>
+
+    <section class="card">
+      <h2>この端末の受付履歴</h2>
+      <div class="history-toolbar">
+        <button id="refreshButton" class="secondary" type="button">状態を更新</button>
+      </div>
+      <div id="history" class="history-list"></div>
+    </section>
+  </main>
+
+  <iframe id="postTarget" name="promotionPlanPostTarget" title="送信用"></iframe>
+
+  <script>
+    'use strict';
+
+    const WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbxcr4WZQhRKUF0yYDKe-y5jkQ2Npl42gIzDiNGKRWqunmmZJcR-XymTGlKYjqI60L_r/exec';
+    const STORAGE_KEY = 'promotion_plan_requests_v1';
+    const MAX_HISTORY = 20;
+    const POLL_INTERVAL_MS = 15000;
+    const SUBMIT_TIMEOUT_MS = 25000;
+    const STORE_LIST = ['海老名', '座間入谷', '大沼', '寒川', '戸塚'];
+    const TERMINAL_STATUSES = ['完了', 'エラー'];
+
+    let histories = loadHistories();
+    let submitPending = null;
+    let pollTimer = null;
+
+    document.addEventListener('DOMContentLoaded', function () {
+      initializeDates();
+      initializeStore();
+      document.getElementById('submitButton').addEventListener('click', submitRequest);
+      document.getElementById('refreshButton').addEventListener('click', refreshAllStatuses);
+      window.addEventListener('message', handlePostMessage);
+      renderHistory();
+      refreshAllStatuses();
+      schedulePolling();
+    });
+
+    function initializeDates() {
+      const today = new Date();
+      const monthEnd = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+      document.getElementById('startDate').value = toDateInput(today);
+      document.getElementById('endDate').value = toDateInput(monthEnd);
+    }
+
+    function initializeStore() {
+      const params = new URLSearchParams(location.search);
+      const store = String(params.get('store') || '').trim();
+      const select = document.getElementById('store');
+      const fixed = document.getElementById('fixedStore');
+
+      if (STORE_LIST.includes(store)) {
+        select.value = store;
+        select.disabled = true;
+        fixed.textContent = 'この端末の店舗：' + store;
+        fixed.style.display = 'block';
+      }
+    }
+
+    function submitRequest() {
+      if (submitPending) {
+        showMessage('送信処理中です。', false);
+        return;
+      }
+
+      const store = document.getElementById('store').value;
+      const startDate = document.getElementById('startDate').value;
+      const endDate = document.getElementById('endDate').value;
+      const departments = Array.from(document.querySelectorAll('input[name="department"]:checked')).map(function (input) {
+        return input.value;
+      });
+
+      if (!store || !startDate || !endDate) {
+        showMessage('店舗・開始日・終了日を入力してください。', false);
+        return;
+      }
+      if (startDate > endDate) {
+        showMessage('終了日は開始日以降にしてください。', false);
+        return;
+      }
+      if (departments.length === 0) {
+        showMessage('対象部門を1つ以上選択してください。', false);
+        return;
+      }
+
+      const requestId = createRequestId();
+      const nonce = createNonce();
+      const item = {
+        request_id: requestId,
+        store: store,
+        start_date: startDate,
+        end_date: endDate,
+        departments: departments,
+        status: '送信中',
+        output_file: '',
+        drive_url: '',
+        error: '',
+        received_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      };
+
+      histories.unshift(item);
+      histories = histories.slice(0, MAX_HISTORY);
+      saveHistories();
+      renderHistory();
+      setSubmitting(true);
+      showMessage('受付を送信しています。', true);
+
+      const timeoutId = window.setTimeout(function () {
+        if (!submitPending || submitPending.nonce !== nonce) {
+          return;
+        }
+        submitPending = null;
+        setSubmitting(false);
+        updateLocalItem(requestId, {
+          status: '送信エラー',
+          error: '受付結果を確認できませんでした。通信環境を確認して、状態更新を押してください。'
+        });
+        showMessage('受付結果を確認できませんでした。状態更新を押してください。', false);
+      }, SUBMIT_TIMEOUT_MS);
+
+      submitPending = { requestId: requestId, nonce: nonce, timeoutId: timeoutId };
+      submitViaHiddenForm({
+        action: 'register',
+        reply: 'postMessage',
+        message_nonce: nonce,
+        request_id: requestId,
+        store: store,
+        start_date: startDate,
+        end_date: endDate,
+        departments: departments.join(',')
+      });
+    }
+
+    function submitViaHiddenForm(data) {
+      const form = document.createElement('form');
+      form.method = 'POST';
+      form.action = WEB_APP_URL;
+      form.target = 'promotionPlanPostTarget';
+      form.style.display = 'none';
+
+      Object.keys(data).forEach(function (key) {
+        const input = document.createElement('input');
+        input.type = 'hidden';
+        input.name = key;
+        input.value = data[key];
+        form.appendChild(input);
+      });
+
+      document.body.appendChild(form);
+      form.submit();
+      form.remove();
+    }
+
+    function handlePostMessage(event) {
+      if (!isGoogleScriptOrigin(event.origin)) {
+        return;
+      }
+      const message = event.data;
+      if (!message || message.source !== 'promotion-plan-api' || !submitPending) {
+        return;
+      }
+      if (message.nonce !== submitPending.nonce) {
+        return;
+      }
+
+      window.clearTimeout(submitPending.timeoutId);
+      const requestId = submitPending.requestId;
+      submitPending = null;
+      setSubmitting(false);
+
+      const payload = message.payload || {};
+      if (!payload.ok) {
+        updateLocalItem(requestId, {
+          status: '送信エラー',
+          error: payload.error || '受付登録に失敗しました。'
+        });
+        showMessage(payload.error || '受付登録に失敗しました。', false);
+        return;
+      }
+
+      applyServerPayload(requestId, payload);
+      showMessage('受付しました。完了すると履歴に「販促計画を開く」ボタンが表示されます。', true);
+      refreshStatus(requestId);
+    }
+
+    function isGoogleScriptOrigin(origin) {
+      return /^https:\/\/(script\.google\.com|[a-z0-9-]+\.googleusercontent\.com)$/.test(origin || '');
+    }
+
+    function refreshAllStatuses() {
+      const targets = histories.filter(function (item) {
+        return item.request_id && !TERMINAL_STATUSES.includes(item.status);
+      });
+      if (targets.length === 0) {
+        renderHistory();
+        return;
+      }
+      targets.forEach(function (item, index) {
+        window.setTimeout(function () { refreshStatus(item.request_id); }, index * 250);
+      });
+    }
+
+    function refreshStatus(requestId) {
+      jsonp({ action: 'status', request_id: requestId })
+        .then(function (payload) {
+          if (payload && payload.ok) {
+            applyServerPayload(requestId, payload);
+          } else if (payload && payload.found === false) {
+            const current = histories.find(function (item) { return item.request_id === requestId; });
+            if (current && current.status !== '送信中') {
+              updateLocalItem(requestId, { error: payload.error || '受付が見つかりません。' });
+            }
+          }
+        })
+        .catch(function () {
+          // 定期確認の通信失敗は履歴状態を壊さず、次回の確認へ回す。
+        });
+    }
+
+    function jsonp(params) {
+      return new Promise(function (resolve, reject) {
+        const callbackName = '__promotionPlanCallback_' + Date.now() + '_' + Math.random().toString(36).slice(2);
+        const script = document.createElement('script');
+        const timeout = window.setTimeout(function () {
+          cleanup();
+          reject(new Error('状態確認がタイムアウトしました。'));
+        }, 20000);
+
+        function cleanup() {
+          window.clearTimeout(timeout);
+          delete window[callbackName];
+          script.remove();
+        }
+
+        window[callbackName] = function (payload) {
+          cleanup();
+          resolve(payload);
+        };
+
+        const query = new URLSearchParams(Object.assign({}, params, {
+          callback: callbackName,
+          _: Date.now().toString()
+        }));
+        script.src = WEB_APP_URL + '?' + query.toString();
+        script.onerror = function () {
+          cleanup();
+          reject(new Error('状態確認に失敗しました。'));
+        };
+        document.body.appendChild(script);
+      });
+    }
+
+    function applyServerPayload(requestId, payload) {
+      updateLocalItem(requestId, {
+        request_id: payload.request_id || requestId,
+        store: payload.store || '',
+        start_date: payload.start_date || '',
+        end_date: payload.end_date || '',
+        departments: Array.isArray(payload.departments) ? payload.departments : [],
+        status: payload.status || '受付中',
+        output_file: payload.output_file || '',
+        drive_url: payload.drive_url || '',
+        error: payload.error || '',
+        received_at: payload.received_at || '',
+        started_at: payload.started_at || '',
+        completed_at: payload.completed_at || '',
+        updated_at: payload.updated_at || ''
+      });
+    }
+
+    function updateLocalItem(requestId, patch) {
+      const index = histories.findIndex(function (item) { return item.request_id === requestId; });
+      if (index < 0) {
+        histories.unshift(Object.assign({ request_id: requestId }, patch));
+      } else {
+        histories[index] = Object.assign({}, histories[index], patch);
+      }
+      histories = histories.slice(0, MAX_HISTORY);
+      saveHistories();
+      renderHistory();
+      schedulePolling();
+    }
+
+    function renderHistory() {
+      const container = document.getElementById('history');
+      if (!histories.length) {
+        container.innerHTML = '<div class="history-empty">この端末からの依頼はまだありません。</div>';
+        return;
+      }
+
+      container.innerHTML = histories.map(function (item) {
+        const status = escapeHtml(item.status || '不明');
+        const className = statusClass(item.status);
+        const departments = Array.isArray(item.departments) ? item.departments.join('・') : String(item.departments || '');
+        const link = item.status === '完了' && item.drive_url
+          ? '<a class="open-button" href="' + escapeAttribute(item.drive_url) + '" target="_blank" rel="noopener">販促計画を開く</a>'
+          : '';
+        const error = item.error ? '<div class="error-text">' + escapeHtml(item.error) + '</div>' : '';
+
+        return '<article class="history-item">' +
+          '<div class="history-head">' +
+            '<div class="history-store">' + escapeHtml(item.store || '店舗未取得') + '</div>' +
+            '<div class="status ' + className + '">' + status + '</div>' +
+          '</div>' +
+          '<div class="history-detail">' +
+            escapeHtml(item.start_date || '') + ' ～ ' + escapeHtml(item.end_date || '') + '<br>' +
+            escapeHtml(departments) +
+            (item.output_file ? '<br>' + escapeHtml(item.output_file) : '') +
+          '</div>' +
+          error + link +
+          '<div class="history-id">受付ID：' + escapeHtml(item.request_id || '') + '</div>' +
+          '<button class="remove-button" type="button" onclick="removeHistory(\'' + escapeJsString(item.request_id || '') + '\')">この履歴を端末から削除</button>' +
+        '</article>';
+      }).join('');
+    }
+
+    function removeHistory(requestId) {
+      histories = histories.filter(function (item) { return item.request_id !== requestId; });
+      saveHistories();
+      renderHistory();
+      schedulePolling();
+    }
+
+    function schedulePolling() {
+      if (pollTimer) {
+        window.clearInterval(pollTimer);
+        pollTimer = null;
+      }
+      const hasActive = histories.some(function (item) {
+        return item.request_id && !TERMINAL_STATUSES.includes(item.status);
+      });
+      if (hasActive) {
+        pollTimer = window.setInterval(refreshAllStatuses, POLL_INTERVAL_MS);
+      }
+    }
+
+    function setSubmitting(active) {
+      const button = document.getElementById('submitButton');
+      button.disabled = active;
+      button.textContent = active ? '送信中…' : '販促計画を依頼する';
+    }
+
+    function showMessage(text, ok) {
+      const element = document.getElementById('message');
+      element.textContent = text;
+      element.className = 'message ' + (ok ? 'ok' : 'ng');
+    }
+
+    function loadHistories() {
+      try {
+        const value = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+        return Array.isArray(value) ? value.slice(0, MAX_HISTORY) : [];
+      } catch (error) {
+        return [];
+      }
+    }
+
+    function saveHistories() {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(histories));
+    }
+
+    function createRequestId() {
+      if (window.crypto && typeof window.crypto.randomUUID === 'function') {
+        return window.crypto.randomUUID();
+      }
+      return 'pp_' + Date.now() + '_' + Math.random().toString(36).slice(2, 12);
+    }
+
+    function createNonce() {
+      return Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 14);
+    }
+
+    function toDateInput(date) {
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const day = String(date.getDate()).padStart(2, '0');
+      return year + '-' + month + '-' + day;
+    }
+
+    function statusClass(status) {
+      if (status === '完了') return 'complete';
+      if (status === 'エラー' || status === '送信エラー') return 'error';
+      if (status === '処理中') return 'processing';
+      if (status === '送信中') return 'sending';
+      return 'waiting';
+    }
+
+    function escapeHtml(value) {
+      return String(value).replace(/[&<>"']/g, function (char) {
+        return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' }[char];
+      });
+    }
+
+    function escapeAttribute(value) {
+      return escapeHtml(value);
+    }
+
+    function escapeJsString(value) {
+      return String(value).replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/\r?\n/g, ' ');
+    }
+  </script>
+</body>
+</html>
