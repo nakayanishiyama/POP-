@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html>
+<html lang="ja">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -8,87 +8,128 @@
   <script src="https://unpkg.com/html5-qrcode"></script>
 
   <style>
+    :root {
+      --blue: #1976d2;
+      --red: #d32f2f;
+      --green: #1b8f3a;
+      --gray: #777;
+      --border: #d8d8d8;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
     body {
-      font-family: sans-serif;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans JP", sans-serif;
       margin: 0;
       padding: 16px;
       background: #f5f5f5;
+      color: #222;
     }
 
     h1 {
       font-size: 22px;
-      margin-bottom: 16px;
+      margin: 8px 0 16px;
       text-align: center;
     }
 
     .box {
-      background: white;
+      max-width: 720px;
+      margin: 0 auto 16px;
+      background: #fff;
       padding: 16px;
       border-radius: 12px;
-      margin-bottom: 16px;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+    }
+
+    .update-box {
+      border: 2px solid #e0a800;
+      background: #fff8dc;
+      color: #654900;
+    }
+
+    .update-date {
+      font-size: 17px;
+      font-weight: 800;
+      margin-bottom: 6px;
+    }
+
+    .update-box ul {
+      margin: 6px 0 0 20px;
+      padding: 0;
+      line-height: 1.55;
+      font-size: 14px;
     }
 
     label {
       display: block;
-      font-weight: bold;
+      font-weight: 700;
       margin-top: 12px;
       margin-bottom: 4px;
     }
 
-    input, select, textarea, button {
+    input[type="text"],
+    select,
+    textarea,
+    button {
       width: 100%;
       font-size: 18px;
       padding: 10px;
-      box-sizing: border-box;
       border-radius: 8px;
       border: 1px solid #ccc;
     }
 
+    textarea {
+      resize: vertical;
+    }
+
     select:disabled {
-      background: #eeeeee;
+      background: #eee;
       color: #333;
-      font-weight: bold;
+      font-weight: 700;
       opacity: 1;
     }
 
     button {
-      border: none;
-      font-weight: bold;
+      border: 0;
+      font-weight: 800;
       margin-top: 14px;
+      cursor: pointer;
     }
 
     button:disabled {
       opacity: 0.6;
+      cursor: wait;
     }
 
     .scan-btn {
-      background: #1976d2;
-      color: white;
+      background: var(--blue);
+      color: #fff;
       font-size: 20px;
       padding: 14px;
     }
 
     .stop-btn {
-      background: #777;
-      color: white;
+      background: var(--gray);
+      color: #fff;
     }
 
     .clear-btn {
       background: #999;
-      color: white;
+      color: #fff;
     }
 
     .submit-btn {
-      background: #d32f2f;
-      color: white;
+      background: var(--red);
+      color: #fff;
       font-size: 24px;
       padding: 16px;
     }
 
     .print-btn {
-      background: #1b8f3a;
-      color: white;
+      background: var(--green);
+      color: #fff;
       font-size: 24px;
       padding: 18px;
       margin-top: 18px;
@@ -98,7 +139,7 @@
       background: #fff3cd;
       border: 1px solid #ffecb5;
       color: #7a5200;
-      font-weight: bold;
+      font-weight: 700;
       padding: 10px;
       border-radius: 8px;
       margin-top: 8px;
@@ -118,6 +159,43 @@
       word-break: break-word;
     }
 
+    .band-option {
+      display: none;
+      margin-top: 12px;
+      padding: 13px;
+      border-radius: 10px;
+      border: 2px solid #d32f2f;
+      background: #fff3f3;
+    }
+
+    .band-option.visible {
+      display: block;
+    }
+
+    .band-check-label {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      margin: 0;
+      font-size: 17px;
+      line-height: 1.35;
+      cursor: pointer;
+    }
+
+    .band-check-label input {
+      width: 24px;
+      height: 24px;
+      flex: 0 0 24px;
+      margin: 0;
+    }
+
+    .band-help {
+      margin: 7px 0 0 34px;
+      font-size: 13px;
+      color: #6b3333;
+      line-height: 1.4;
+    }
+
     #reader {
       width: 100%;
       margin-top: 12px;
@@ -125,7 +203,7 @@
 
     #message {
       font-size: 18px;
-      font-weight: bold;
+      font-weight: 800;
       text-align: center;
       margin-top: 12px;
       line-height: 1.5;
@@ -137,26 +215,26 @@
     }
 
     .ng {
-      color: #d32f2f;
+      color: var(--red);
     }
 
     .history-title {
-      font-weight: bold;
+      font-weight: 800;
       margin-bottom: 8px;
     }
 
     .history-item {
       font-size: 15px;
-      padding: 8px;
+      padding: 9px 4px;
       border-bottom: 1px solid #eee;
-      line-height: 1.4;
+      line-height: 1.45;
     }
 
     .small-note {
       font-size: 14px;
       color: #666;
-      margin-top: 6px;
-      line-height: 1.4;
+      margin-top: 10px;
+      line-height: 1.45;
     }
 
     .product-status {
@@ -181,22 +259,39 @@
       border: 1px solid #ffecb5;
       color: #7a5200;
     }
+
+    .field-help {
+      font-size: 13px;
+      color: #666;
+      line-height: 1.4;
+      margin-top: 5px;
+    }
   </style>
 </head>
 
 <body>
   <h1>POP依頼登録</h1>
 
+  <div class="box update-box">
+    <div class="update-date">最終更新：2026年7月12日</div>
+    <ul>
+      <li>タイムPOP・帯POPを追加しました。</li>
+      <li>値下げ／タイムは、同じ内容の帯を1枠追加できます。</li>
+      <li>帯は1商品＝A4半面1枠です。2商品でA4 1ページになります。</li>
+      <li>マスタ未登録JANも、商品名と売価を入力すれば作成できます。</li>
+    </ul>
+  </div>
+
   <div class="box">
     <div id="requestInfo" class="request-box"></div>
 
-    <button id="scanButton" class="scan-btn" onclick="startScan()">JANをカメラで読む</button>
-    <button class="stop-btn" onclick="stopScan()">カメラ停止</button>
+    <button id="scanButton" class="scan-btn" type="button" onclick="startScan()">JANをカメラで読む</button>
+    <button class="stop-btn" type="button" onclick="stopScan()">カメラ停止</button>
     <div id="reader"></div>
   </div>
 
   <div class="box">
-    <label>店舗</label>
+    <label for="store">店舗</label>
     <select id="store">
       <option value="海老名">海老名</option>
       <option value="座間入谷">座間入谷</option>
@@ -206,42 +301,55 @@
     </select>
     <div id="storeFixedMessage" class="store-fixed"></div>
 
-    <label>JANコード</label>
+    <label for="jan">JANコード</label>
     <input id="jan" type="text" inputmode="numeric" placeholder="JANコード">
 
     <div id="productMessage" class="product-status"></div>
 
-    <label>メーカー</label>
+    <label for="maker">メーカー</label>
     <input id="maker" type="text" placeholder="JAN読取後に自動入力。必要なら修正可">
 
-    <label>商品名</label>
+    <label for="productName">商品名</label>
     <input id="productName" type="text" placeholder="JAN読取後に自動入力。必要なら修正可">
 
-    <label>規格</label>
+    <label for="spec">規格</label>
     <input id="spec" type="text" placeholder="JAN読取後に自動入力。必要なら修正可">
 
-    <label>売価（税抜）</label>
+    <label for="price">売価（税抜）</label>
     <input id="price" type="text" inputmode="numeric" placeholder="空白または0なら定番売価" enterkeyhint="done">
+    <div class="field-help">マスタ未登録商品は売価の入力が必要です。</div>
 
-    <label>POP種類</label>
-    <select id="popType">
+    <label for="popType">POP種類</label>
+    <select id="popType" onchange="updatePopTypeUi()">
       <option value="値下げ">値下げ</option>
+      <option value="タイム">タイム</option>
+      <option value="帯">帯</option>
     </select>
 
-    <label>枚数</label>
-    <input id="count" type="text" inputmode="numeric" value="1">
+    <div id="bandOption" class="band-option visible">
+      <label class="band-check-label" for="addBand">
+        <input id="addBand" type="checkbox">
+        <span>同じ内容で帯も作成する</span>
+      </label>
+      <div class="band-help">追加される帯は、元POPの枚数に関係なく1枠固定です。</div>
+    </div>
 
-    <label>備考</label>
+    <label id="countLabel" for="count">枚数</label>
+    <input id="count" type="text" inputmode="numeric" value="1">
+    <div id="countHelp" class="field-help">値下げ／タイムは、指定枚数分を1ページずつ作成します。</div>
+
+    <label for="note">備考</label>
     <textarea id="note" rows="2" placeholder="任意"></textarea>
 
-    <button id="submitButton" class="submit-btn" onclick="submitData()">登録する</button>
-    <button class="clear-btn" onclick="clearForm()">入力をクリア</button>
+    <button id="submitButton" class="submit-btn" type="button" onclick="submitData()">登録する</button>
+    <button class="clear-btn" type="button" onclick="clearForm()">入力をクリア</button>
 
-    <button id="printButton" class="print-btn" onclick="executePrint()">印刷実行</button>
+    <button id="printButton" class="print-btn" type="button" onclick="executePrint()">印刷実行</button>
 
     <div class="small-note">
       JANを続けて登録し、最後に「印刷実行」を押してください。<br>
-      登録後は自動で次のJAN読取に戻ります。
+      帯は1件を上半分、2件を上下に配置します。奇数件の最後は下半分が空欄になります。<br>
+      登録後は自動で次のJAN入力に戻ります。
     </div>
 
     <div id="message"></div>
@@ -255,17 +363,13 @@
   </div>
 
 <script>
+  'use strict';
+
   const WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbxVYW0Pw2lVmMtqnssX_X47l2wfIerbwPj9W2nWeplQD1vU0TalfPXFEkYU0QwFL8I/exec';
   const SECRET_KEY = 'pop2026';
-  const MASTER_JSON_URL = 'master.json?v=20260709';
+  const MASTER_JSON_URL = 'master.json?v=20260712';
 
-  const STORE_LIST = [
-    '海老名',
-    '座間入谷',
-    '大沼',
-    '寒川',
-    '戸塚'
-  ];
+  const STORE_LIST = ['海老名', '座間入谷', '大沼', '寒川', '戸塚'];
 
   let html5QrCode = null;
   let scanning = false;
@@ -276,40 +380,54 @@
   let currentRequestId = '';
   let itemMaster = {};
   let itemMasterLoaded = false;
-  let itemMasterLoading = false;
   let itemMasterPromise = null;
   let lastLookupJan = '';
+  let currentProductFound = null;
 
-  document.addEventListener('DOMContentLoaded', function() {
+  document.addEventListener('DOMContentLoaded', function () {
     initRequestId();
     initStoreFromUrl();
     setupEnterSubmit();
     setupProductLookupEvents();
     loadMasterJson();
     renderRequestInfo();
+    updatePopTypeUi();
   });
 
   function setMessage(text, ok) {
-    const msg = document.getElementById('message');
-    msg.textContent = text;
-    msg.className = ok ? 'ok' : 'ng';
+    const element = document.getElementById('message');
+    element.textContent = text;
+    element.className = ok ? 'ok' : 'ng';
   }
 
   function setProductMessage(text, ok) {
-    const el = document.getElementById('productMessage');
-
-    if (!el) {
-      return;
-    }
-
+    const element = document.getElementById('productMessage');
     if (!text) {
-      el.textContent = '';
-      el.className = 'product-status';
+      element.textContent = '';
+      element.className = 'product-status';
       return;
     }
+    element.textContent = text;
+    element.className = ok ? 'product-status product-hit' : 'product-status product-miss';
+  }
 
-    el.textContent = text;
-    el.className = ok ? 'product-status product-hit' : 'product-status product-miss';
+  function updatePopTypeUi() {
+    const popType = document.getElementById('popType').value;
+    const bandOption = document.getElementById('bandOption');
+    const addBand = document.getElementById('addBand');
+    const countLabel = document.getElementById('countLabel');
+    const countHelp = document.getElementById('countHelp');
+
+    if (popType === '帯') {
+      bandOption.classList.remove('visible');
+      addBand.checked = false;
+      countLabel.textContent = '帯の枠数';
+      countHelp.textContent = '1枠＝A4半面です。2枠でA4 1ページになります。';
+    } else {
+      bandOption.classList.add('visible');
+      countLabel.textContent = '枚数';
+      countHelp.textContent = '値下げ／タイムは、指定枚数分を1ページずつ作成します。';
+    }
   }
 
   function loadMasterJson() {
@@ -317,27 +435,22 @@
       return itemMasterPromise;
     }
 
-    itemMasterLoading = true;
-
-    itemMasterPromise = fetch("master.json?v=" + Date.now())
-      .then(function(response) {
+    itemMasterPromise = fetch(MASTER_JSON_URL)
+      .then(function (response) {
         if (!response.ok) {
           throw new Error('master.json load failed: ' + response.status);
         }
-
         return response.json();
       })
-      .then(function(data) {
+      .then(function (data) {
         itemMaster = data || {};
         itemMasterLoaded = true;
-        itemMasterLoading = false;
         return itemMaster;
       })
-      .catch(function(err) {
+      .catch(function () {
         itemMaster = {};
         itemMasterLoaded = false;
-        itemMasterLoading = false;
-        setProductMessage('商品マスタを読み込めませんでした。商品名などは手入力できます。', false);
+        setProductMessage('商品マスタを読み込めませんでした。商品名・売価を手入力できます。', false);
         return itemMaster;
       });
 
@@ -347,19 +460,18 @@
   function setupProductLookupEvents() {
     const janInput = document.getElementById('jan');
 
-    janInput.addEventListener('input', function() {
+    janInput.addEventListener('input', function () {
       const jan = String(janInput.value).replace(/\D/g, '');
-
       if (jan.length === 8 || jan.length === 13) {
         lookupProductByJan(false);
       }
     });
 
-    janInput.addEventListener('change', function() {
+    janInput.addEventListener('change', function () {
       lookupProductByJan(true);
     });
 
-    janInput.addEventListener('blur', function() {
+    janInput.addEventListener('blur', function () {
       lookupProductByJan(false);
     });
   }
@@ -370,6 +482,7 @@
     document.getElementById('spec').value = '';
     setProductMessage('', true);
     lastLookupJan = '';
+    currentProductFound = null;
   }
 
   function fillProductFields(item) {
@@ -393,36 +506,37 @@
     lastLookupJan = jan;
 
     if (jan.length !== 8 && jan.length !== 13) {
+      currentProductFound = null;
       setProductMessage('JANは8桁または13桁で確認します。', false);
       return;
     }
 
     setProductMessage('商品情報を確認中...', true);
 
-    loadMasterJson().then(function(master) {
+    loadMasterJson().then(function (master) {
       const item = master[jan];
 
       if (!item) {
         document.getElementById('maker').value = '';
         document.getElementById('productName').value = '';
         document.getElementById('spec').value = '';
-        setProductMessage('商品マスタに見つかりません。商品名などを手入力できます。', false);
+        currentProductFound = false;
+        setProductMessage('商品マスタ未登録です。商品名と売価を入力すれば作成できます。', false);
         return;
       }
 
       fillProductFields(item);
+      currentProductFound = true;
       setProductMessage('商品情報を自動入力しました。必要なら修正できます。', true);
     });
   }
 
   function initRequestId() {
     const saved = sessionStorage.getItem('pop_request_id');
-
     if (saved) {
       currentRequestId = saved;
       return;
     }
-
     resetRequestId();
   }
 
@@ -434,34 +548,29 @@
 
   function createRequestId() {
     const now = new Date();
-
     const y = now.getFullYear();
     const m = String(now.getMonth() + 1).padStart(2, '0');
     const d = String(now.getDate()).padStart(2, '0');
     const hh = String(now.getHours()).padStart(2, '0');
     const mm = String(now.getMinutes()).padStart(2, '0');
     const ss = String(now.getSeconds()).padStart(2, '0');
-    const rand = Math.random().toString(36).slice(2, 8);
-
-    return y + m + d + '_' + hh + mm + ss + '_' + rand;
+    const random = Math.random().toString(36).slice(2, 8);
+    return y + m + d + '_' + hh + mm + ss + '_' + random;
   }
 
   function renderRequestInfo() {
-    const el = document.getElementById('requestInfo');
-
-    if (!el) {
+    const element = document.getElementById('requestInfo');
+    if (!element) {
       return;
     }
-
-    el.innerHTML =
-      '現在の受付ID：' + currentRequestId + '<br>' +
+    element.innerHTML =
+      '現在の受付ID：' + escapeHtml(currentRequestId) + '<br>' +
       'この受付IDで登録したJANだけ、印刷実行時にまとめてPDF化されます。';
   }
 
   function initStoreFromUrl() {
     const params = new URLSearchParams(window.location.search);
     const storeParam = params.get('store');
-
     const storeSelect = document.getElementById('store');
     const fixedMessage = document.getElementById('storeFixedMessage');
 
@@ -472,34 +581,30 @@
     }
 
     const decodedStore = String(storeParam).trim();
-
     if (STORE_LIST.includes(decodedStore)) {
       storeSelect.value = decodedStore;
       storeSelect.disabled = true;
-
       fixedMessage.textContent = 'この端末の店舗：' + decodedStore;
       fixedMessage.style.display = 'block';
-
       setMessage('店舗を固定しました：' + decodedStore, true);
     } else {
       storeSelect.disabled = false;
       fixedMessage.style.display = 'none';
-
       setMessage('URLの店舗名が正しくありません：' + decodedStore, false);
     }
   }
 
   function setupEnterSubmit() {
-    document.getElementById('price').addEventListener('keydown', function(e) {
-      if (e.key === 'Enter') {
-        e.preventDefault();
+    document.getElementById('price').addEventListener('keydown', function (event) {
+      if (event.key === 'Enter') {
+        event.preventDefault();
         submitData();
       }
     });
 
-    document.getElementById('jan').addEventListener('keydown', function(e) {
-      if (e.key === 'Enter') {
-        e.preventDefault();
+    document.getElementById('jan').addEventListener('keydown', function (event) {
+      if (event.key === 'Enter') {
+        event.preventDefault();
         lookupProductByJan(true);
         document.getElementById('price').focus();
       }
@@ -507,86 +612,48 @@
   }
 
   function blurAllInputs() {
-    const active = document.activeElement;
-
-    if (active && typeof active.blur === 'function') {
-      active.blur();
-    }
-
-    document.getElementById('jan').blur();
-    document.getElementById('maker').blur();
-    document.getElementById('productName').blur();
-    document.getElementById('spec').blur();
-    document.getElementById('price').blur();
-    document.getElementById('count').blur();
-    document.getElementById('note').blur();
-  }
-
-  function scrollToScanArea() {
-    const scanButton = document.getElementById('scanButton');
-
-    if (scanButton) {
-      scanButton.scrollIntoView({
-        behavior: 'smooth',
-        block: 'center'
-      });
-    } else {
-      window.scrollTo({
-        top: 0,
-        behavior: 'smooth'
-      });
+    if (document.activeElement && typeof document.activeElement.blur === 'function') {
+      document.activeElement.blur();
     }
   }
 
   function startScan() {
     if (scanning) {
-      setMessage('すでにカメラ起動中です', true);
+      setMessage('カメラは起動中です。', true);
       return;
     }
 
-    blurAllInputs();
-    scrollToScanArea();
+    if (typeof Html5Qrcode === 'undefined') {
+      setMessage('カメラ読取機能を読み込めませんでした。JANを手入力してください。', false);
+      return;
+    }
 
-    html5QrCode = new Html5Qrcode("reader");
-
-    const config = {
-      fps: 10,
-      qrbox: { width: 280, height: 160 },
-      formatsToSupport: [
-        Html5QrcodeSupportedFormats.EAN_13,
-        Html5QrcodeSupportedFormats.EAN_8,
-        Html5QrcodeSupportedFormats.UPC_A,
-        Html5QrcodeSupportedFormats.UPC_E
-      ]
-    };
-
-    setMessage('カメラを起動しています。許可を求められたら「許可」を押してください。', true);
+    html5QrCode = html5QrCode || new Html5Qrcode('reader');
+    scanning = true;
+    setMessage('カメラを起動しています...', true);
 
     html5QrCode.start(
-      { facingMode: "environment" },
-      config,
-      function(decodedText) {
+      { facingMode: 'environment' },
+      { fps: 10, qrbox: { width: 280, height: 150 } },
+      function (decodedText) {
         const jan = String(decodedText).replace(/\D/g, '');
+        if (!jan) {
+          return;
+        }
         document.getElementById('jan').value = jan;
-        lookupProductByJan(true);
-
-        setMessage('JAN読取成功：' + jan + '　商品情報を確認しています。売価入力、または空白で定番売価登録できます。', true);
-
         stopScan();
-
-        setTimeout(function() {
+        lookupProductByJan(true);
+        setMessage('JANを読み取りました：' + jan, true);
+        setTimeout(function () {
           document.getElementById('price').focus();
         }, 300);
       },
-      function(errorMessage) {
-        // 読取途中のエラーは表示しない
+      function () {
+        // 読取途中のエラーは表示しない。
       }
-    ).then(function() {
-      scanning = true;
-      setMessage('カメラ起動中。バーコードを枠に合わせてください。', true);
-    }).catch(function(err) {
+    ).catch(function () {
       scanning = false;
-      setMessage('カメラを起動できません。JANを手入力するか、もう一度「JANをカメラで読む」を押してください。', false);
+      setMessage('カメラを起動できませんでした。JANを手入力してください。', false);
     });
   }
 
@@ -595,25 +662,44 @@
       return;
     }
 
-    html5QrCode.stop().then(function() {
+    html5QrCode.stop().then(function () {
       html5QrCode.clear();
       scanning = false;
-    }).catch(function(err) {
+    }).catch(function () {
       scanning = false;
     });
   }
 
-  function getFormData() {
-    let priceValue = document.getElementById('price').value;
-    let countValue = document.getElementById('count').value;
+  async function ensureProductLookupForSubmit(jan) {
+    lastLookupJan = jan;
+    const master = await loadMasterJson();
+    const item = master[jan];
 
-    priceValue = String(priceValue).replace(/[^\d]/g, '');
-    countValue = String(countValue).replace(/[^\d]/g, '');
+    if (item) {
+      currentProductFound = true;
+      if (!document.getElementById('maker').value.trim()) {
+        document.getElementById('maker').value = item.maker || '';
+      }
+      if (!document.getElementById('productName').value.trim()) {
+        document.getElementById('productName').value = item.name || '';
+      }
+      if (!document.getElementById('spec').value.trim()) {
+        document.getElementById('spec').value = item.spec || '';
+      }
+      setProductMessage('商品情報を確認しました。必要なら修正できます。', true);
+    } else {
+      currentProductFound = false;
+      setProductMessage('商品マスタ未登録です。商品名と売価を入力すれば作成できます。', false);
+    }
+  }
+
+  function getFormData() {
+    let priceValue = String(document.getElementById('price').value).replace(/[^\d]/g, '');
+    let countValue = String(document.getElementById('count').value).replace(/[^\d]/g, '');
 
     if (priceValue === '') {
       priceValue = '0';
     }
-
     if (countValue === '') {
       countValue = '1';
     }
@@ -621,14 +707,15 @@
     return {
       store: document.getElementById('store').value,
       jan: String(document.getElementById('jan').value).replace(/\D/g, ''),
-      maker: document.getElementById('maker').value,
-      productName: document.getElementById('productName').value,
-      spec: document.getElementById('spec').value,
+      maker: document.getElementById('maker').value.trim(),
+      productName: document.getElementById('productName').value.trim(),
+      spec: document.getElementById('spec').value.trim(),
       price: priceValue,
       popType: document.getElementById('popType').value,
       count: countValue,
       note: document.getElementById('note').value,
-      requestId: currentRequestId
+      requestId: currentRequestId,
+      addBand: document.getElementById('addBand').checked
     };
   }
 
@@ -636,131 +723,171 @@
     if (!price || Number(price) <= 0) {
       return '定番売価';
     }
-
-    return price + '円';
+    return Number(price).toLocaleString('ja-JP') + '円';
   }
 
-  function submitData() {
+  function validateData(data) {
+    if (!data.store || !STORE_LIST.includes(data.store)) {
+      setMessage('店舗名が正しくありません。', false);
+      return false;
+    }
+
+    if (!data.jan) {
+      setMessage('JANコードを入力してください。', false);
+      document.getElementById('jan').focus();
+      return false;
+    }
+
+    if (!data.count || Number(data.count) <= 0) {
+      setMessage(data.popType === '帯' ? '帯の枠数を入力してください。' : '枚数を入力してください。', false);
+      document.getElementById('count').focus();
+      return false;
+    }
+
+    if (currentProductFound === false || (!itemMasterLoaded && data.productName)) {
+      if (!data.productName) {
+        setMessage('マスタ未登録商品の商品名を入力してください。', false);
+        document.getElementById('productName').focus();
+        return false;
+      }
+      if (Number(data.price) <= 0) {
+        setMessage('マスタ未登録商品の売価を入力してください。', false);
+        document.getElementById('price').focus();
+        return false;
+      }
+    }
+
+    return true;
+  }
+
+  async function submitData() {
     if (submitting) {
       setMessage('登録処理中です。少し待ってください。', true);
       return;
     }
 
-    const submitButton = document.getElementById('submitButton');
+    const janBeforeLookup = String(document.getElementById('jan').value).replace(/\D/g, '');
+    if (janBeforeLookup && (currentProductFound === null || lastLookupJan !== janBeforeLookup)) {
+      await ensureProductLookupForSubmit(janBeforeLookup);
+    }
+
     const data = getFormData();
-
-    if (!data.store) {
-      setMessage('店舗を選択してください', false);
+    if (!validateData(data)) {
       return;
     }
 
-    if (!STORE_LIST.includes(data.store)) {
-      setMessage('店舗名が正しくありません', false);
-      return;
-    }
-
-    if (!data.jan) {
-      setMessage('JANコードを入力してください', false);
-      document.getElementById('jan').focus();
-      return;
-    }
-
-    if (!data.count || Number(data.count) <= 0) {
-      setMessage('枚数を入力してください', false);
-      document.getElementById('count').focus();
-      return;
-    }
-
+    stopScan();
     blurAllInputs();
 
-    submitting = true;
-    submitButton.disabled = true;
-    submitButton.textContent = '登録中...';
-
-    if (Number(data.price) <= 0) {
-      setMessage('登録中... 定番売価で登録します。', true);
-    } else {
-      setMessage('登録中... 売価 ' + data.price + '円で登録します。', true);
+    const requests = [Object.assign({}, data)];
+    if ((data.popType === '値下げ' || data.popType === 'タイム') && data.addBand) {
+      requests.push(Object.assign({}, data, {
+        popType: '帯',
+        count: '1',
+        addBand: false
+      }));
     }
 
-    sendSaveRequest(data);
-  }
-
-  function sendSaveRequest(data) {
+    submitting = true;
     const submitButton = document.getElementById('submitButton');
-    const frameName = 'popSaveFrame_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8);
+    submitButton.disabled = true;
+    submitButton.textContent = requests.length === 2 ? '登録中（帯も追加）...' : '登録中...';
 
-    let finished = false;
+    setMessage(
+      requests.length === 2
+        ? '登録中です。元POPと帯1枠を登録します。'
+        : '登録中です。',
+      true
+    );
 
-    const params = new URLSearchParams({
-      action: 'save',
-      key: SECRET_KEY,
-      store: data.store,
-      jan: data.jan,
-      maker: data.maker,
-      productName: data.productName,
-      spec: data.spec,
-      price: data.price,
-      popType: data.popType,
-      count: data.count,
-      note: data.note,
-      requestId: data.requestId,
-      t: String(Date.now())
-    });
-
-    const iframe = document.createElement('iframe');
-    iframe.name = frameName;
-    iframe.id = frameName;
-    iframe.style.display = 'none';
-
-    const finishSuccess = function() {
-      if (finished) {
-        return;
+    try {
+      for (const request of requests) {
+        await sendOneSaveRequest(request);
       }
 
-      finished = true;
-
-      setMessage(
-        '登録しました：' +
-        data.store +
-        ' / ' +
-        data.jan +
-        (data.productName ? ' / ' + data.productName : '') +
-        ' / ' +
-        getPriceDisplay(data.price) +
-        '　次のJANを読み取れます。',
-        true
-      );
-
-      registeredThisSession++;
+      registeredThisSession += requests.length;
       addHistory(data);
       clearFormAfterSubmit();
 
+      const extraText = requests.length === 2 ? ' ＋ 帯1枠' : '';
+      setMessage(
+        '登録しました：' + data.store + ' / ' + data.jan +
+        (data.productName ? ' / ' + data.productName : '') +
+        ' / ' + data.popType + extraText +
+        '　次のJANを入力できます。',
+        true
+      );
+    } catch (error) {
+      setMessage('登録通信に失敗しました。通信環境を確認して再度登録してください。', false);
+    } finally {
       submitting = false;
       submitButton.disabled = false;
       submitButton.textContent = '登録する';
+    }
+  }
 
-      setTimeout(function() {
-        const oldFrame = document.getElementById(frameName);
-        if (oldFrame) {
-          oldFrame.remove();
-        }
-      }, 3000);
-    };
+  function sendOneSaveRequest(data) {
+    return new Promise(function (resolve, reject) {
+      const frameName = 'popSaveFrame_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8);
+      let finished = false;
 
-    iframe.onload = function() {
-      setTimeout(finishSuccess, 500);
-    };
+      const params = new URLSearchParams({
+        action: 'save',
+        key: SECRET_KEY,
+        store: data.store,
+        jan: data.jan,
+        maker: data.maker,
+        productName: data.productName,
+        spec: data.spec,
+        price: data.price,
+        popType: data.popType,
+        count: data.count,
+        note: data.note,
+        requestId: data.requestId,
+        t: String(Date.now())
+      });
 
-    iframe.src = WEB_APP_URL + '?' + params.toString();
+      const iframe = document.createElement('iframe');
+      iframe.name = frameName;
+      iframe.id = frameName;
+      iframe.style.display = 'none';
 
-    document.body.appendChild(iframe);
-
-    setTimeout(function() {
-      if (!finished) {
-        finishSuccess();
+      function cleanup() {
+        window.setTimeout(function () {
+          const oldFrame = document.getElementById(frameName);
+          if (oldFrame) {
+            oldFrame.remove();
+          }
+        }, 1000);
       }
-    }, 5000);
+
+      function finishSuccess() {
+        if (finished) {
+          return;
+        }
+        finished = true;
+        cleanup();
+        resolve();
+      }
+
+      iframe.onload = function () {
+        window.setTimeout(finishSuccess, 400);
+      };
+
+      iframe.onerror = function () {
+        if (finished) {
+          return;
+        }
+        finished = true;
+        cleanup();
+        reject(new Error('save failed'));
+      };
+
+      iframe.src = WEB_APP_URL + '?' + params.toString();
+      document.body.appendChild(iframe);
+
+      window.setTimeout(finishSuccess, 5000);
+    });
   }
 
   function executePrint() {
@@ -770,7 +897,7 @@
     }
 
     if (registeredThisSession <= 0) {
-      setMessage('まだ登録されたJANがありません', false);
+      setMessage('まだ登録されたJANがありません。', false);
       return;
     }
 
@@ -778,11 +905,9 @@
     blurAllInputs();
 
     const printButton = document.getElementById('printButton');
-
     printing = true;
     printButton.disabled = true;
     printButton.textContent = '印刷待ち登録中...';
-
     setMessage('印刷待ちに変更しています...', true);
 
     sendPrintRequest(currentRequestId);
@@ -791,7 +916,6 @@
   function sendPrintRequest(requestId) {
     const printButton = document.getElementById('printButton');
     const frameName = 'popPrintFrame_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8);
-
     let finished = false;
 
     const params = new URLSearchParams({
@@ -806,48 +930,46 @@
     iframe.id = frameName;
     iframe.style.display = 'none';
 
-    const finishSuccess = function() {
+    function finishSuccess() {
       if (finished) {
         return;
       }
-
       finished = true;
-
-      setMessage(
-        '印刷実行しました。PC側でPDF作成されます。',
-        true
-      );
-
+      setMessage('印刷実行しました。PC側でPDFが作成されます。', true);
       registeredThisSession = 0;
       historyList = [];
       renderHistory();
       resetRequestId();
-
       printing = false;
       printButton.disabled = false;
       printButton.textContent = '印刷実行';
 
-      setTimeout(function() {
+      window.setTimeout(function () {
         const oldFrame = document.getElementById(frameName);
         if (oldFrame) {
           oldFrame.remove();
         }
-      }, 3000);
+      }, 1000);
+    }
+
+    iframe.onload = function () {
+      window.setTimeout(finishSuccess, 400);
     };
 
-    iframe.onload = function() {
-      setTimeout(finishSuccess, 500);
+    iframe.onerror = function () {
+      if (finished) {
+        return;
+      }
+      finished = true;
+      printing = false;
+      printButton.disabled = false;
+      printButton.textContent = '印刷実行';
+      setMessage('印刷実行の通信に失敗しました。', false);
     };
 
     iframe.src = WEB_APP_URL + '?' + params.toString();
-
     document.body.appendChild(iframe);
-
-    setTimeout(function() {
-      if (!finished) {
-        finishSuccess();
-      }
-    }, 5000);
+    window.setTimeout(finishSuccess, 5000);
   }
 
   function clearFormAfterSubmit() {
@@ -857,12 +979,9 @@
     document.getElementById('count').value = '1';
     document.getElementById('note').value = '';
 
-    blurAllInputs();
-    scrollToScanArea();
-
-    setTimeout(function() {
-      startScan();
-    }, 700);
+    window.setTimeout(function () {
+      document.getElementById('jan').focus();
+    }, 300);
   }
 
   function clearForm() {
@@ -871,11 +990,9 @@
     document.getElementById('price').value = '';
     document.getElementById('count').value = '1';
     document.getElementById('note').value = '';
-
-    blurAllInputs();
-    scrollToScanArea();
-
-    setMessage('入力をクリアしました', true);
+    document.getElementById('addBand').checked = false;
+    setMessage('入力をクリアしました。', true);
+    document.getElementById('jan').focus();
   }
 
   function addHistory(data) {
@@ -888,15 +1005,14 @@
       time: timeText,
       store: data.store,
       jan: data.jan,
-      maker: data.maker,
       productName: data.productName,
-      spec: data.spec,
       price: data.price,
-      count: data.count
+      popType: data.popType,
+      count: data.count,
+      addBand: (data.popType === '値下げ' || data.popType === 'タイム') && data.addBand
     });
 
-    historyList = historyList.slice(0, 5);
-
+    historyList = historyList.slice(0, 8);
     renderHistory();
   }
 
@@ -908,18 +1024,28 @@
       return;
     }
 
-    history.innerHTML = historyList.map(function(item) {
+    history.innerHTML = historyList.map(function (item) {
+      const unit = item.popType === '帯' ? '枠' : '枚';
+      const bandText = item.addBand ? ' ＋ 帯1枠' : '';
       return '<div class="history-item">' +
-        item.time + '　' +
-        item.store + '　' +
-        item.jan + '　' +
-        (item.productName ? item.productName + '　' : '') +
-        getPriceDisplay(item.price) + '　' +
-        item.count + '枚' +
+        escapeHtml(item.time) + '　' +
+        escapeHtml(item.store) + '<br>' +
+        escapeHtml(item.jan) +
+        (item.productName ? '　' + escapeHtml(item.productName) : '') + '<br>' +
+        escapeHtml(item.popType) + ' ' + escapeHtml(item.count) + unit +
+        bandText + '　' + escapeHtml(getPriceDisplay(item.price)) +
         '</div>';
     }).join('');
   }
-</script>
 
+  function escapeHtml(value) {
+    return String(value)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
+  }
+</script>
 </body>
 </html>
