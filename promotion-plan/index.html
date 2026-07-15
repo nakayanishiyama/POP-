@@ -59,10 +59,18 @@
     button { border: 0; font-weight: 800; cursor: pointer; }
     button:disabled { cursor: default; opacity: .55; }
     .primary { background: #d44736; color: white; margin-top: 18px; font-size: 20px; min-height: 56px; }
-    .secondary { background: #1f4e78; color: white; box-shadow: 0 2px 5px rgba(31,78,120,.2); }
-    .secondary:active { transform: translateY(1px); }
-    .refresh-message { min-height: 22px; margin: 4px 0 10px; font-size: 13px; font-weight: 700; color: #24435d; }
-    .open-button { background: #198754; color: white; text-decoration: none; display: block; text-align: center; padding: 13px 10px; border-radius: 9px; font-weight: 800; margin-top: 10px; }
+    .secondary { background: #e8eef3; color: #24435d; }
+    .open-button {
+      background: #198754;
+      color: white;
+      text-decoration: none;
+      display: block;
+      text-align: center;
+      padding: 13px 10px;
+      border-radius: 9px;
+      font-weight: 800;
+      margin-top: 10px;
+    }
     .message { display: none; margin-top: 12px; padding: 11px; border-radius: 9px; line-height: 1.5; font-weight: 700; }
     .message.ok { display: block; background: #e8f6ec; color: #126b2e; }
     .message.ng { display: block; background: #fdebea; color: #a0211b; }
@@ -85,7 +93,6 @@
     .history-id { word-break: break-all; font-size: 11px; color: #82909b; margin-top: 6px; }
     .error-text { margin-top: 8px; color: #a0211b; font-weight: 700; white-space: pre-wrap; }
     .remove-button { margin-top: 8px; min-height: 36px; font-size: 13px; background: #f0f2f4; color: #5c6872; }
-    iframe { display: none; }
     @media (max-width: 520px) {
       .dates { grid-template-columns: 1fr; }
       .departments { grid-template-columns: 1fr 1fr; }
@@ -140,14 +147,11 @@
     <section class="card">
       <h2>この端末の受付履歴</h2>
       <div class="history-toolbar">
-        <button id="refreshButton" class="secondary" type="button">最新状態を確認</button>
+        <button id="refreshButton" class="secondary" type="button">状態を更新</button>
       </div>
-      <div id="refreshMessage" class="refresh-message" aria-live="polite"></div>
       <div id="history" class="history-list"></div>
     </section>
   </main>
-
-  <iframe id="postTarget" name="promotionPlanPostTarget" title="送信用"></iframe>
 
   <script>
     'use strict';
@@ -156,7 +160,8 @@
     const STORAGE_KEY = 'promotion_plan_requests_v1';
     const MAX_HISTORY = 20;
     const POLL_INTERVAL_MS = 15000;
-    const SUBMIT_TIMEOUT_MS = 25000;
+    const REGISTER_TIMEOUT_MS = 12000;
+    const STATUS_TIMEOUT_MS = 20000;
     const STORE_LIST = ['海老名', '座間入谷', '大沼', '寒川', '戸塚'];
     const TERMINAL_STATUSES = ['完了', 'エラー'];
 
@@ -168,13 +173,9 @@
       initializeDates();
       initializeStore();
       document.getElementById('submitButton').addEventListener('click', submitRequest);
-      const refreshButton = document.getElementById('refreshButton');
-      refreshButton.disabled = false;
-      refreshButton.removeAttribute('disabled');
-      refreshButton.addEventListener('click', manualRefreshStatuses);
-      window.addEventListener('message', handlePostMessage);
+      document.getElementById('refreshButton').addEventListener('click', refreshAllStatuses);
       renderHistory();
-      refreshAllStatuses(true);
+      refreshAllStatuses();
       schedulePolling();
     });
 
@@ -226,7 +227,6 @@
       }
 
       const requestId = createRequestId();
-      const nonce = createNonce();
       const item = {
         request_id: requestId,
         store: store,
@@ -245,80 +245,47 @@
       histories = histories.slice(0, MAX_HISTORY);
       saveHistories();
       renderHistory();
+      submitPending = requestId;
       setSubmitting(true);
       showMessage('受付を送信しています。', true);
 
-      const timeoutId = window.setTimeout(function () {
-        if (!submitPending || submitPending.nonce !== nonce) {
-          return;
-        }
-        verifySubmittedRequest(requestId, nonce);
-      }, SUBMIT_TIMEOUT_MS);
-
-      submitPending = { requestId: requestId, nonce: nonce, timeoutId: timeoutId };
-      submitViaHiddenForm({
+      jsonp({
         action: 'register',
-        reply: 'postMessage',
-        message_nonce: nonce,
         request_id: requestId,
         store: store,
         start_date: startDate,
         end_date: endDate,
         departments: departments.join(',')
-      });
+      }, REGISTER_TIMEOUT_MS)
+        .then(function (payload) {
+          finishSubmit(requestId, payload);
+        })
+        .catch(function () {
+          submitPending = null;
+          setSubmitting(false);
+          updateLocalItem(requestId, {
+            status: '受付確認中',
+            error: ''
+          });
+          showMessage('送信は完了した可能性があります。受付を自動確認しています。再送信は不要です。', true);
+          window.setTimeout(function () { refreshStatus(requestId); }, 1200);
+        });
     }
 
-    function submitViaHiddenForm(data) {
-      const form = document.createElement('form');
-      form.method = 'POST';
-      form.action = WEB_APP_URL;
-      form.target = 'promotionPlanPostTarget';
-      form.style.display = 'none';
-
-      Object.keys(data).forEach(function (key) {
-        const input = document.createElement('input');
-        input.type = 'hidden';
-        input.name = key;
-        input.value = data[key];
-        form.appendChild(input);
-      });
-
-      document.body.appendChild(form);
-      form.submit();
-      form.remove();
-    }
-
-    function handlePostMessage(event) {
-      if (!isGoogleScriptOrigin(event.origin)) {
-        return;
-      }
-      let message = event.data;
-      if (typeof message === 'string') {
-        try {
-          message = JSON.parse(message);
-        } catch (error) {
-          return;
-        }
-      }
-      if (!message || message.source !== 'promotion-plan-api' || !submitPending) {
-        return;
-      }
-      if (message.nonce !== submitPending.nonce) {
+    function finishSubmit(requestId, payload) {
+      if (submitPending !== requestId) {
         return;
       }
 
-      window.clearTimeout(submitPending.timeoutId);
-      const requestId = submitPending.requestId;
       submitPending = null;
       setSubmitting(false);
 
-      const payload = message.payload || {};
-      if (!payload.ok) {
+      if (!payload || !payload.ok) {
         updateLocalItem(requestId, {
           status: '送信エラー',
-          error: payload.error || '受付登録に失敗しました。'
+          error: payload && payload.error ? payload.error : '受付登録に失敗しました。'
         });
-        showMessage(payload.error || '受付登録に失敗しました。', false);
+        showMessage(payload && payload.error ? payload.error : '受付登録に失敗しました。', false);
         return;
       }
 
@@ -327,124 +294,65 @@
       refreshStatus(requestId);
     }
 
-    function isGoogleScriptOrigin(origin) {
-      return /^https:\/\/(?:script\.google\.com|(?:[a-z0-9-]+\.)*googleusercontent\.com)$/i.test(origin || '');
-    }
-
-    function verifySubmittedRequest(requestId, nonce) {
-      jsonp({ action: 'status', request_id: requestId })
-        .then(function (payload) {
-          if (!submitPending || submitPending.nonce !== nonce) {
-            return;
-          }
-
-          window.clearTimeout(submitPending.timeoutId);
-          submitPending = null;
-          setSubmitting(false);
-
-          if (payload && payload.ok) {
-            applyServerPayload(requestId, payload);
-            showMessage('受付しました。完了すると履歴に「販促計画を開く」ボタンが表示されます。', true);
-            return;
-          }
-
-          updateLocalItem(requestId, {
-            status: '送信エラー',
-            error: payload && payload.error
-              ? payload.error
-              : '受付結果を確認できませんでした。通信環境を確認して、状態更新を押してください。'
-          });
-          showMessage('受付結果を確認できませんでした。状態更新を押してください。', false);
-        })
-        .catch(function () {
-          if (!submitPending || submitPending.nonce !== nonce) {
-            return;
-          }
-
-          window.clearTimeout(submitPending.timeoutId);
-          submitPending = null;
-          setSubmitting(false);
-          updateLocalItem(requestId, {
-            status: '送信エラー',
-            error: '受付結果を確認できませんでした。通信環境を確認して、状態更新を押してください。'
-          });
-          showMessage('受付結果を確認できませんでした。状態更新を押してください。', false);
-        });
-    }
-
-    function manualRefreshStatuses() {
-      const button = document.getElementById('refreshButton');
-      const message = document.getElementById('refreshMessage');
+    function refreshAllStatuses() {
       const targets = histories.filter(function (item) {
-        return Boolean(item.request_id);
+        return item.request_id && !TERMINAL_STATUSES.includes(item.status);
       });
 
-      button.disabled = true;
-      button.textContent = '確認中…';
-      message.textContent = '最新状態を確認しています。';
-
-      if (targets.length === 0) {
-        renderHistory();
-        message.textContent = '更新対象の依頼はありません。';
-        button.disabled = false;
-        button.textContent = '最新状態を確認';
-        return;
-      }
-
-      Promise.allSettled(targets.map(function (item) {
-        return refreshStatus(item.request_id);
-      })).then(function () {
-        message.textContent = '状態を更新しました。';
-      }).finally(function () {
-        button.disabled = false;
-        button.textContent = '最新状態を確認';
-      });
-    }
-
-    function refreshAllStatuses(includeTerminal) {
-      const targets = histories.filter(function (item) {
-        if (!item.request_id) return false;
-        return includeTerminal || !TERMINAL_STATUSES.includes(item.status);
-      });
       if (targets.length === 0) {
         renderHistory();
         return;
       }
+
       targets.forEach(function (item, index) {
-        window.setTimeout(function () { refreshStatus(item.request_id); }, index * 250);
+        window.setTimeout(function () {
+          refreshStatus(item.request_id);
+        }, index * 250);
       });
     }
 
     function refreshStatus(requestId) {
-      return jsonp({ action: 'status', request_id: requestId })
+      jsonp({ action: 'status', request_id: requestId }, STATUS_TIMEOUT_MS)
         .then(function (payload) {
           if (payload && payload.ok) {
-            const current = histories.find(function (item) { return item.request_id === requestId; });
-            const wasUnconfirmed = current && (current.status === '送信中' || current.status === '送信エラー');
+            const current = histories.find(function (item) {
+              return item.request_id === requestId;
+            });
+            const wasUnconfirmed = current && ['送信中', '受付確認中', '送信エラー'].includes(current.status);
+
             applyServerPayload(requestId, payload);
+
             if (wasUnconfirmed) {
               showMessage('受付を確認しました。完了すると履歴に「販促計画を開く」ボタンが表示されます。', true);
             }
-          } else if (payload && payload.found === false) {
-            const current = histories.find(function (item) { return item.request_id === requestId; });
-            if (current && current.status !== '送信中') {
-              updateLocalItem(requestId, { error: payload.error || '受付が見つかりません。' });
+            return;
+          }
+
+          if (payload && payload.found === false) {
+            const current = histories.find(function (item) {
+              return item.request_id === requestId;
+            });
+
+            if (current && !['送信中', '受付確認中'].includes(current.status)) {
+              updateLocalItem(requestId, {
+                error: payload.error || '受付が見つかりません。'
+              });
             }
           }
         })
         .catch(function () {
-          // 定期確認の通信失敗は履歴状態を壊さず、次回の確認へ回す。
+          // 定期確認の通信失敗は履歴を壊さず、次回確認へ回す。
         });
     }
 
-    function jsonp(params) {
+    function jsonp(params, timeoutMs) {
       return new Promise(function (resolve, reject) {
         const callbackName = '__promotionPlanCallback_' + Date.now() + '_' + Math.random().toString(36).slice(2);
         const script = document.createElement('script');
         const timeout = window.setTimeout(function () {
           cleanup();
-          reject(new Error('状態確認がタイムアウトしました。'));
-        }, 20000);
+          reject(new Error('通信がタイムアウトしました。'));
+        }, timeoutMs || STATUS_TIMEOUT_MS);
 
         function cleanup() {
           window.clearTimeout(timeout);
@@ -461,10 +369,11 @@
           callback: callbackName,
           _: Date.now().toString()
         }));
+
         script.src = WEB_APP_URL + '?' + query.toString();
         script.onerror = function () {
           cleanup();
-          reject(new Error('状態確認に失敗しました。'));
+          reject(new Error('通信に失敗しました。'));
         };
         document.body.appendChild(script);
       });
@@ -489,12 +398,16 @@
     }
 
     function updateLocalItem(requestId, patch) {
-      const index = histories.findIndex(function (item) { return item.request_id === requestId; });
+      const index = histories.findIndex(function (item) {
+        return item.request_id === requestId;
+      });
+
       if (index < 0) {
         histories.unshift(Object.assign({ request_id: requestId }, patch));
       } else {
         histories[index] = Object.assign({}, histories[index], patch);
       }
+
       histories = histories.slice(0, MAX_HISTORY);
       saveHistories();
       renderHistory();
@@ -503,6 +416,7 @@
 
     function renderHistory() {
       const container = document.getElementById('history');
+
       if (!histories.length) {
         container.innerHTML = '<div class="history-empty">この端末からの依頼はまだありません。</div>';
         return;
@@ -511,11 +425,15 @@
       container.innerHTML = histories.map(function (item) {
         const status = escapeHtml(item.status || '不明');
         const className = statusClass(item.status);
-        const departments = Array.isArray(item.departments) ? item.departments.join('・') : String(item.departments || '');
+        const departments = Array.isArray(item.departments)
+          ? item.departments.join('・')
+          : String(item.departments || '');
         const link = item.status === '完了' && item.drive_url
           ? '<a class="open-button" href="' + escapeAttribute(item.drive_url) + '" target="_blank" rel="noopener">販促計画を開く</a>'
           : '';
-        const error = item.error ? '<div class="error-text">' + escapeHtml(item.error) + '</div>' : '';
+        const error = item.error
+          ? '<div class="error-text">' + escapeHtml(item.error) + '</div>'
+          : '';
 
         return '<article class="history-item">' +
           '<div class="history-head">' +
@@ -535,7 +453,9 @@
     }
 
     function removeHistory(requestId) {
-      histories = histories.filter(function (item) { return item.request_id !== requestId; });
+      histories = histories.filter(function (item) {
+        return item.request_id !== requestId;
+      });
       saveHistories();
       renderHistory();
       schedulePolling();
@@ -546,9 +466,11 @@
         window.clearInterval(pollTimer);
         pollTimer = null;
       }
+
       const hasActive = histories.some(function (item) {
         return item.request_id && !TERMINAL_STATUSES.includes(item.status);
       });
+
       if (hasActive) {
         pollTimer = window.setInterval(refreshAllStatuses, POLL_INTERVAL_MS);
       }
@@ -586,10 +508,6 @@
       return 'pp_' + Date.now() + '_' + Math.random().toString(36).slice(2, 12);
     }
 
-    function createNonce() {
-      return Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 14);
-    }
-
     function toDateInput(date) {
       const year = date.getFullYear();
       const month = String(date.getMonth() + 1).padStart(2, '0');
@@ -601,7 +519,7 @@
       if (status === '完了') return 'complete';
       if (status === 'エラー' || status === '送信エラー') return 'error';
       if (status === '処理中') return 'processing';
-      if (status === '送信中') return 'sending';
+      if (status === '送信中' || status === '受付確認中') return 'sending';
       return 'waiting';
     }
 
@@ -616,7 +534,10 @@
     }
 
     function escapeJsString(value) {
-      return String(value).replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/\r?\n/g, ' ');
+      return String(value)
+        .replace(/\\/g, '\\\\')
+        .replace(/'/g, "\\'")
+        .replace(/\r?\n/g, ' ');
     }
   </script>
 </body>
