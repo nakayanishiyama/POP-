@@ -266,14 +266,88 @@
       line-height: 1.4;
       margin-top: 5px;
     }
-  </style>
+  
+/* POP_UPDATE_HISTORY_STYLE_START */
+.pop-update-history {
+  margin: 14px 0 18px;
+  border: 1px solid #d8dee8;
+  border-radius: 12px;
+  background: #ffffff;
+  box-shadow: 0 2px 8px rgba(31, 41, 55, 0.07);
+  overflow: hidden;
+}
+
+.pop-update-history summary {
+  padding: 13px 15px;
+  font-weight: 700;
+  cursor: pointer;
+  list-style: none;
+  background: #f7f9fc;
+  color: #26364a;
+}
+
+.pop-update-history summary::-webkit-details-marker {
+  display: none;
+}
+
+.pop-update-history summary::after {
+  content: "＋";
+  float: right;
+  font-weight: 700;
+}
+
+.pop-update-history[open] summary::after {
+  content: "－";
+}
+
+.pop-update-history-list {
+  margin: 0;
+  padding: 5px 18px 13px 38px;
+}
+
+.pop-update-history-list li {
+  margin: 9px 0;
+  line-height: 1.55;
+}
+
+.pop-update-history-date {
+  display: inline-block;
+  min-width: 7.5em;
+  font-weight: 700;
+  color: #41556e;
+}
+/* POP_UPDATE_HISTORY_STYLE_END */
+
+</style>
 </head>
 
 <body>
   <h1>POP依頼登録</h1>
 
   <div class="box update-box">
-    <div class="update-date">最終更新：2026年7月12日</div>
+    <div class="update-date">最終更新：2026年7月15日</div>
+
+
+<!-- POP_UPDATE_HISTORY_START -->
+<details class="pop-update-history">
+  <summary>更新履歴（最終更新：2026年7月15日）</summary>
+  <ul class="pop-update-history-list">
+    <li>
+      <span class="pop-update-history-date">2026年7月15日</span>
+      通常POPを追加しました。
+    </li>
+    <li>
+      <span class="pop-update-history-date">2026年7月12日</span>
+      タイムPOP・帯POPと「同じ内容で帯も作成」を追加しました。
+    </li>
+    <li>
+      <span class="pop-update-history-date">2026年7月12日</span>
+      受付画面の案内表示とPOP作成処理を更新しました。
+    </li>
+  </ul>
+</details>
+<!-- POP_UPDATE_HISTORY_END -->
+
     <ul>
       <li>タイムPOP・帯POPを追加しました。</li>
       <li>値下げ／タイムは、同じ内容の帯を1枠追加できます。</li>
