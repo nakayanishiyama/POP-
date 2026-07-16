@@ -330,7 +330,7 @@
       <ul class="pop-update-history-list">
         <li>
           <span class="pop-update-history-date">2026年7月16日</span>
-          JANカメラ読取設定を復旧し、読取ライブラリのバージョンを固定しました。
+          JANカメラの起動互換性を修正し、読取ライブラリのバージョンを固定しました。
         </li>
         <li>
           <span class="pop-update-history-date">2026年7月15日</span>
@@ -855,19 +855,29 @@
       viewfinderWidth,
       viewfinderHeight
     ) {
+      /*
+       * 画面サイズより読取枠が大きくならないようにする。
+       * 小さいスマートフォンでもカメラ起動を妨げない設定。
+       */
       const width = Math.min(
-        320,
-        Math.floor(viewfinderWidth * 0.90)
+        300,
+        Math.floor(viewfinderWidth * 0.85)
       );
 
       const height = Math.min(
-        170,
-        Math.floor(viewfinderHeight * 0.45)
+        130,
+        Math.floor(viewfinderHeight * 0.35)
       );
 
       return {
-        width: Math.max(220, width),
-        height: Math.max(110, height)
+        width: Math.max(
+          120,
+          Math.min(width, viewfinderWidth - 20)
+        ),
+        height: Math.max(
+          70,
+          Math.min(height, viewfinderHeight - 20)
+        )
       };
     }
 
@@ -910,7 +920,6 @@
                 Html5QrcodeSupportedFormats.UPC_A,
                 Html5QrcodeSupportedFormats.UPC_E
               ],
-              useBarCodeDetectorIfSupported: false,
               verbose: false
             }
           );
@@ -923,15 +932,11 @@
 
         await html5QrCode.start(
           {
-            facingMode: {
-              ideal: 'environment'
-            }
+            facingMode: 'environment'
           },
           {
-            fps: 12,
-            qrbox: createQrBox,
-            aspectRatio: 1.7777778,
-            disableFlip: false
+            fps: 10,
+            qrbox: createQrBox
           },
           function (decodedText) {
             const jan = normalizeJan(decodedText);
@@ -973,8 +978,18 @@
           error
         );
 
+        const errorDetail =
+          error && error.message
+            ? error.message
+            : String(error || '');
+
         setMessage(
-          'カメラを起動できませんでした。ブラウザのカメラ権限を確認するか、JANを手入力してください。',
+          'カメラを起動できませんでした。権限を確認して再度お試しください。' +
+          (
+            errorDetail
+              ? ' エラー：' + errorDetail
+              : ''
+          ),
           false
         );
       } finally {
