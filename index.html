@@ -320,64 +320,6 @@
       font-weight: 700;
       color: #41556e;
     }
-    .auth-box {
-      margin: 12px 0 16px;
-      padding: 12px;
-      border: 1px solid #d5d9e0;
-      border-radius: 8px;
-      background: #f8f9fb;
-    }
-
-    .auth-row {
-      display: flex;
-      gap: 8px;
-      align-items: stretch;
-    }
-
-    .auth-row input {
-      flex: 1 1 auto;
-      min-width: 0;
-    }
-
-    .auth-save-btn {
-      flex: 0 0 auto;
-      width: auto;
-      min-width: 130px;
-      margin: 0;
-      padding: 10px 12px;
-      background: #4a5568;
-      color: #fff;
-    }
-
-    .auth-status {
-      margin-top: 8px;
-      font-weight: bold;
-    }
-
-    .auth-status.ok {
-      color: #167c2f;
-    }
-
-    .auth-status.ng {
-      color: #b42318;
-    }
-
-    .auth-note {
-      margin-top: 6px;
-      font-size: 12px;
-      color: #666;
-    }
-
-    @media (max-width: 560px) {
-      .auth-row {
-        display: block;
-      }
-
-      .auth-save-btn {
-        width: 100%;
-        margin-top: 8px;
-      }
-    }
 
   </style>
 </head>
@@ -386,11 +328,15 @@
   <h1>POP依頼登録</h1>
 
   <div class="box update-box">
-    <div class="update-date">最終更新：2026年7月16日</div>
+    <div class="update-date">最終更新：2026年7月31日</div>
 
     <details class="pop-update-history">
-      <summary>更新履歴（最終更新：2026年7月16日）</summary>
+      <summary>更新履歴（最終更新：2026年7月31日）</summary>
       <ul class="pop-update-history-list">
+        <li>
+          <span class="pop-update-history-date">2026年7月31日</span>
+          通信処理を安全化し、二重登録防止を追加しました。操作方法は従来どおりです。
+        </li>
         <li>
           <span class="pop-update-history-date">2026年7月16日</span>
           JANカメラの起動互換性を修正し、読取ライブラリのバージョンを固定しました。
@@ -440,30 +386,6 @@
       <option value="戸塚">戸塚</option>
     </select>
     <div id="storeFixedMessage" class="store-fixed"></div>
-
-    <div class="auth-box">
-      <label for="storeAuthCode">店舗認証コード</label>
-      <div class="auth-row">
-        <input
-          id="storeAuthCode"
-          type="password"
-          autocomplete="off"
-          placeholder="初回または認証エラー時に入力"
-        >
-        <button
-          id="saveStoreAuthButton"
-          class="auth-save-btn"
-          type="button"
-          onclick="saveStoreAuthentication()"
-        >
-          認証コードを保存
-        </button>
-      </div>
-      <div id="storeAuthStatus" class="auth-status"></div>
-      <div class="auth-note">
-        認証コードはこの端末内でハッシュ化して保存します。
-      </div>
-    </div>
 
     <label for="jan">JANコード</label>
     <input id="jan" type="text" inputmode="numeric" placeholder="JANコード">
@@ -548,14 +470,12 @@
     'use strict';
 
     const WEB_APP_URL =
-      'https://script.google.com/macros/s/AKfycbwMXOrb8y3-N0sP7wyabWyWQrFi8BFaj4y1xij6HRfQYcILi7ZJyoA-PLpJymGjlg/exec';
+      'https://script.google.com/macros/s/AKfycbyk3Jv4r5NIu8iBATrwV6OjQXGUdok7wyc2SZhrUYkTbbOqcN2LAwvG5Pz8Uc39RDq3/exec';
 
     const FRONTEND_CODE_VERSION =
-      '20260730_github_auth_frontend_v5';
+      '20260731_no_auth_frontend_v6';
 
-    const MASTER_JSON_URL = 'master.json?v=20260712';
-    const AUTH_STORAGE_PREFIX =
-      'pop_store_auth_proof_v1_';
+    const MASTER_JSON_URL = 'master.json?v=20260731';
 
     const REQUEST_ID_STORAGE_KEY =
       'pop_request_id';
@@ -594,7 +514,6 @@
     document.addEventListener('DOMContentLoaded', function () {
       initRequestId();
       initStoreFromUrl();
-      setupStoreAuthentication();
       setupEnterSubmit();
       setupProductLookupEvents();
       loadMasterJson();
@@ -1019,75 +938,13 @@
       );
     }
 
-    function setupStoreAuthentication() {
-      const storeSelect =
-        document.getElementById('store');
-
-      storeSelect.addEventListener(
-        'change',
-        renderStoreAuthStatus
-      );
-
-      document
-        .getElementById('storeAuthCode')
-        .addEventListener('keydown', function (event) {
-          if (event.key === 'Enter') {
-            event.preventDefault();
-            saveStoreAuthentication();
-          }
-        });
-
-      renderStoreAuthStatus();
-    }
-
-    function getStoreAuthStorageKey(store) {
-      return AUTH_STORAGE_PREFIX + store;
-    }
-
-    function getStoredAuthProof(store) {
-      const proof = localStorage.getItem(
-        getStoreAuthStorageKey(store)
-      ) || '';
-
-      return /^[a-f0-9]{64}$/i.test(proof)
-        ? proof.toLowerCase()
-        : '';
-    }
-
-    function clearStoredAuthProof(store) {
-      localStorage.removeItem(
-        getStoreAuthStorageKey(store)
-      );
-
-      renderStoreAuthStatus();
-    }
-
-    function renderStoreAuthStatus() {
-      const store =
-        document.getElementById('store').value;
-
-      const status =
-        document.getElementById('storeAuthStatus');
-
-      if (getStoredAuthProof(store)) {
-        status.textContent =
-          store + '：認証コード設定済み';
-        status.className = 'auth-status ok';
-        return;
-      }
-
-      status.textContent =
-        store + '：認証コード未設定';
-      status.className = 'auth-status ng';
-    }
-
     async function sha256Hex(value) {
       if (
         !window.crypto ||
         !window.crypto.subtle
       ) {
         throw new Error(
-          'このブラウザでは認証処理を利用できません。'
+          'このブラウザでは必要な暗号化処理を利用できません。'
         );
       }
 
@@ -1110,73 +967,6 @@
         .join('');
     }
 
-    async function saveStoreAuthentication(targetStore) {
-      const selectedStore =
-        document.getElementById('store').value;
-
-      const store =
-        STORE_LIST.includes(targetStore)
-          ? targetStore
-          : selectedStore;
-
-      const input =
-        document.getElementById('storeAuthCode');
-
-      const code = input.value.trim();
-
-      if (!code) {
-        setMessage(
-          '店舗認証コードを入力してください。',
-          false
-        );
-        input.focus();
-        return '';
-      }
-
-      const proof = await sha256Hex(code);
-
-      localStorage.setItem(
-        getStoreAuthStorageKey(store),
-        proof
-      );
-
-      input.value = '';
-      renderStoreAuthStatus();
-
-      setMessage(
-        store + 'の認証コードを端末に保存しました。',
-        true
-      );
-
-      return proof;
-    }
-
-    async function resolveStoreAuthProof(store) {
-      const input =
-        document.getElementById('storeAuthCode');
-
-      if (input.value.trim()) {
-        return await saveStoreAuthentication(store);
-      }
-
-      const proof = getStoredAuthProof(store);
-
-      if (proof) {
-        return proof;
-      }
-
-      setMessage(
-        store + 'の店舗認証コードを入力してください。',
-        false
-      );
-
-      input.focus();
-
-      throw Object.assign(
-        new Error('店舗認証コードが未設定です。'),
-        { code: 'AUTH_REQUIRED' }
-      );
-    }
 
     function setupEnterSubmit() {
       document
@@ -1738,15 +1528,6 @@
         return;
       }
 
-      let authProof = '';
-
-      try {
-        authProof =
-          await resolveStoreAuthProof(data.store);
-      } catch (error) {
-        return;
-      }
-
       await stopScan();
       blurAllInputs();
 
@@ -1805,7 +1586,6 @@
 
           await sendOneSaveRequest(
             requests[index],
-            authProof,
             operation.operationId
           );
 
@@ -1853,17 +1633,6 @@
             error.message,
             false
           );
-        } else if (error && error.code === 'AUTH_FAILED') {
-          clearStoredAuthProof(data.store);
-
-          setMessage(
-            '店舗認証コードが正しくありません。認証コードを再入力してください。',
-            false
-          );
-
-          document
-            .getElementById('storeAuthCode')
-            .focus();
         } else {
           setMessage(
             '登録通信に失敗しました。通信環境を確認して再度登録してください。',
@@ -1879,13 +1648,11 @@
 
     function sendOneSaveRequest(
       data,
-      authProof,
       clientOperationId
     ) {
       return sendJsonpRequest({
         action: 'save',
         store: data.store,
-        authProof: authProof,
         clientVersion: FRONTEND_CODE_VERSION,
         clientOperationId: clientOperationId,
         jan: data.jan,
@@ -2031,15 +1798,6 @@
         currentRequestStore ||
         document.getElementById('store').value;
 
-      let authProof = '';
-
-      try {
-        authProof =
-          await resolveStoreAuthProof(printStore);
-      } catch (error) {
-        return;
-      }
-
       await stopScan();
       blurAllInputs();
 
@@ -2059,8 +1817,7 @@
       try {
         await sendPrintRequest(
           currentRequestId,
-          printStore,
-          authProof
+          printStore
         );
 
         setMessage(
@@ -2079,23 +1836,10 @@
           error
         );
 
-        if (error && error.code === 'AUTH_FAILED') {
-          clearStoredAuthProof(printStore);
-
-          setMessage(
-            '店舗認証コードが正しくありません。認証コードを再入力してください。',
-            false
-          );
-
-          document
-            .getElementById('storeAuthCode')
-            .focus();
-        } else {
-          setMessage(
-            '印刷実行の通信に失敗しました。通信環境を確認して再度押してください。',
-            false
-          );
-        }
+        setMessage(
+          '印刷実行の通信に失敗しました。通信環境を確認して再度押してください。',
+          false
+        );
       } finally {
         printing = false;
         printButton.disabled = false;
@@ -2105,13 +1849,11 @@
 
     function sendPrintRequest(
       requestId,
-      store,
-      authProof
+      store
     ) {
       return sendJsonpRequest({
         action: 'print',
         store: store,
-        authProof: authProof,
         clientVersion: FRONTEND_CODE_VERSION,
         requestId: requestId,
         t: String(Date.now())
