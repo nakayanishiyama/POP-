@@ -3,10 +3,14 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta
+    http-equiv="Content-Security-Policy"
+    content="default-src 'self'; script-src 'self' 'unsafe-inline' https://script.google.com https://script.googleusercontent.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' blob:; connect-src 'self'; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'none'"
+  >
   <title>POP依頼登録</title>
 
-  <!-- バージョンを固定し、更新による読取挙動の変化を防止 -->
-  <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+  <!-- html5-qrcode 2.3.8を候補フォルダ内から読み込み、外部CDNへ依存しない -->
+  <script src="vendor/html5-qrcode-2.3.8.min.js"></script>
 
   <style>
     :root {
@@ -316,6 +320,65 @@
       font-weight: 700;
       color: #41556e;
     }
+    .auth-box {
+      margin: 12px 0 16px;
+      padding: 12px;
+      border: 1px solid #d5d9e0;
+      border-radius: 8px;
+      background: #f8f9fb;
+    }
+
+    .auth-row {
+      display: flex;
+      gap: 8px;
+      align-items: stretch;
+    }
+
+    .auth-row input {
+      flex: 1 1 auto;
+      min-width: 0;
+    }
+
+    .auth-save-btn {
+      flex: 0 0 auto;
+      width: auto;
+      min-width: 130px;
+      margin: 0;
+      padding: 10px 12px;
+      background: #4a5568;
+      color: #fff;
+    }
+
+    .auth-status {
+      margin-top: 8px;
+      font-weight: bold;
+    }
+
+    .auth-status.ok {
+      color: #167c2f;
+    }
+
+    .auth-status.ng {
+      color: #b42318;
+    }
+
+    .auth-note {
+      margin-top: 6px;
+      font-size: 12px;
+      color: #666;
+    }
+
+    @media (max-width: 560px) {
+      .auth-row {
+        display: block;
+      }
+
+      .auth-save-btn {
+        width: 100%;
+        margin-top: 8px;
+      }
+    }
+
   </style>
 </head>
 
@@ -377,6 +440,30 @@
       <option value="戸塚">戸塚</option>
     </select>
     <div id="storeFixedMessage" class="store-fixed"></div>
+
+    <div class="auth-box">
+      <label for="storeAuthCode">店舗認証コード</label>
+      <div class="auth-row">
+        <input
+          id="storeAuthCode"
+          type="password"
+          autocomplete="off"
+          placeholder="初回または認証エラー時に入力"
+        >
+        <button
+          id="saveStoreAuthButton"
+          class="auth-save-btn"
+          type="button"
+          onclick="saveStoreAuthentication()"
+        >
+          認証コードを保存
+        </button>
+      </div>
+      <div id="storeAuthStatus" class="auth-status"></div>
+      <div class="auth-note">
+        認証コードはこの端末内でハッシュ化して保存します。
+      </div>
+    </div>
 
     <label for="jan">JANコード</label>
     <input id="jan" type="text" inputmode="numeric" placeholder="JANコード">
@@ -461,10 +548,23 @@
     'use strict';
 
     const WEB_APP_URL =
-      'https://script.google.com/macros/s/AKfycbxVYW0Pw2lVmMtqnssX_X47l2wfIerbwPj9W2nWeplQD1vU0TalfPXFEkYU0QwFL8I/exec';
+      'https://script.google.com/macros/s/AKfycbwMXOrb8y3-N0sP7wyabWyWQrFi8BFaj4y1xij6HRfQYcILi7ZJyoA-PLpJymGjlg/exec';
 
-    const SECRET_KEY = 'pop2026';
+    const FRONTEND_CODE_VERSION =
+      '20260730_github_auth_frontend_v5';
+
     const MASTER_JSON_URL = 'master.json?v=20260712';
+    const AUTH_STORAGE_PREFIX =
+      'pop_store_auth_proof_v1_';
+
+    const REQUEST_ID_STORAGE_KEY =
+      'pop_request_id';
+    const REQUEST_STORE_STORAGE_KEY =
+      'pop_request_store';
+    const REQUEST_PROGRESS_STORAGE_KEY =
+      'pop_request_progress_v2';
+    const PENDING_ATTEMPT_STORAGE_KEY =
+      'pop_pending_attempt_v2';
 
     const STORE_LIST = [
       '海老名',
@@ -483,6 +583,7 @@
     let historyList = [];
     let registeredThisSession = 0;
     let currentRequestId = '';
+    let currentRequestStore = '';
 
     let itemMaster = {};
     let itemMasterLoaded = false;
@@ -493,6 +594,7 @@
     document.addEventListener('DOMContentLoaded', function () {
       initRequestId();
       initStoreFromUrl();
+      setupStoreAuthentication();
       setupEnterSubmit();
       setupProductLookupEvents();
       loadMasterJson();
@@ -714,10 +816,18 @@
     }
 
     function initRequestId() {
-      const saved = sessionStorage.getItem('pop_request_id');
+      const saved = sessionStorage.getItem(
+        REQUEST_ID_STORAGE_KEY
+      );
+
+      currentRequestStore =
+        sessionStorage.getItem(
+          REQUEST_STORE_STORAGE_KEY
+        ) || '';
 
       if (saved) {
         currentRequestId = saved;
+        restoreRequestProgress();
         return;
       }
 
@@ -726,13 +836,110 @@
 
     function resetRequestId() {
       currentRequestId = createRequestId();
+      currentRequestStore = '';
+      registeredThisSession = 0;
 
       sessionStorage.setItem(
-        'pop_request_id',
+        REQUEST_ID_STORAGE_KEY,
         currentRequestId
       );
 
+      sessionStorage.removeItem(
+        REQUEST_STORE_STORAGE_KEY
+      );
+
+      sessionStorage.removeItem(
+        REQUEST_PROGRESS_STORAGE_KEY
+      );
+
+      sessionStorage.removeItem(
+        PENDING_ATTEMPT_STORAGE_KEY
+      );
+
       renderRequestInfo();
+    }
+
+    function restoreRequestProgress() {
+      registeredThisSession = 0;
+
+      const raw = sessionStorage.getItem(
+        REQUEST_PROGRESS_STORAGE_KEY
+      );
+
+      if (!raw) {
+        return;
+      }
+
+      try {
+        const progress = JSON.parse(raw);
+
+        if (
+          !progress ||
+          progress.requestId !== currentRequestId
+        ) {
+          sessionStorage.removeItem(
+            REQUEST_PROGRESS_STORAGE_KEY
+          );
+          return;
+        }
+
+        registeredThisSession = Math.max(
+          0,
+          Number.parseInt(
+            progress.successfulCount,
+            10
+          ) || 0
+        );
+
+        if (
+          !currentRequestStore &&
+          STORE_LIST.includes(progress.store)
+        ) {
+          currentRequestStore = progress.store;
+
+          sessionStorage.setItem(
+            REQUEST_STORE_STORAGE_KEY,
+            currentRequestStore
+          );
+        }
+      } catch (error) {
+        console.warn(
+          'request progress restore failed',
+          error
+        );
+
+        sessionStorage.removeItem(
+          REQUEST_PROGRESS_STORAGE_KEY
+        );
+      }
+    }
+
+    function persistRequestProgress() {
+      sessionStorage.setItem(
+        REQUEST_PROGRESS_STORAGE_KEY,
+        JSON.stringify({
+          version: 2,
+          requestId: currentRequestId,
+          store: currentRequestStore,
+          successfulCount: registeredThisSession
+        })
+      );
+
+      renderRequestInfo();
+    }
+
+    function recordSuccessfulSave(store) {
+      if (!currentRequestStore) {
+        currentRequestStore = store;
+
+        sessionStorage.setItem(
+          REQUEST_STORE_STORAGE_KEY,
+          currentRequestStore
+        );
+      }
+
+      registeredThisSession += 1;
+      persistRequestProgress();
     }
 
     function createRequestId() {
@@ -763,6 +970,9 @@
       element.innerHTML =
         '現在の受付ID：' +
         escapeHtml(currentRequestId) +
+        '<br>' +
+        '登録成功件数：' +
+        String(registeredThisSession) +
         '<br>' +
         'この受付IDで登録したJANだけ、印刷実行時にまとめてPDF化されます。';
     }
@@ -806,6 +1016,165 @@
       setMessage(
         'URLの店舗名が正しくありません：' + decodedStore,
         false
+      );
+    }
+
+    function setupStoreAuthentication() {
+      const storeSelect =
+        document.getElementById('store');
+
+      storeSelect.addEventListener(
+        'change',
+        renderStoreAuthStatus
+      );
+
+      document
+        .getElementById('storeAuthCode')
+        .addEventListener('keydown', function (event) {
+          if (event.key === 'Enter') {
+            event.preventDefault();
+            saveStoreAuthentication();
+          }
+        });
+
+      renderStoreAuthStatus();
+    }
+
+    function getStoreAuthStorageKey(store) {
+      return AUTH_STORAGE_PREFIX + store;
+    }
+
+    function getStoredAuthProof(store) {
+      const proof = localStorage.getItem(
+        getStoreAuthStorageKey(store)
+      ) || '';
+
+      return /^[a-f0-9]{64}$/i.test(proof)
+        ? proof.toLowerCase()
+        : '';
+    }
+
+    function clearStoredAuthProof(store) {
+      localStorage.removeItem(
+        getStoreAuthStorageKey(store)
+      );
+
+      renderStoreAuthStatus();
+    }
+
+    function renderStoreAuthStatus() {
+      const store =
+        document.getElementById('store').value;
+
+      const status =
+        document.getElementById('storeAuthStatus');
+
+      if (getStoredAuthProof(store)) {
+        status.textContent =
+          store + '：認証コード設定済み';
+        status.className = 'auth-status ok';
+        return;
+      }
+
+      status.textContent =
+        store + '：認証コード未設定';
+      status.className = 'auth-status ng';
+    }
+
+    async function sha256Hex(value) {
+      if (
+        !window.crypto ||
+        !window.crypto.subtle
+      ) {
+        throw new Error(
+          'このブラウザでは認証処理を利用できません。'
+        );
+      }
+
+      const bytes = new TextEncoder().encode(
+        String(value || '')
+      );
+
+      const digest =
+        await window.crypto.subtle.digest(
+          'SHA-256',
+          bytes
+        );
+
+      return Array.from(new Uint8Array(digest))
+        .map(function (byteValue) {
+          return byteValue
+            .toString(16)
+            .padStart(2, '0');
+        })
+        .join('');
+    }
+
+    async function saveStoreAuthentication(targetStore) {
+      const selectedStore =
+        document.getElementById('store').value;
+
+      const store =
+        STORE_LIST.includes(targetStore)
+          ? targetStore
+          : selectedStore;
+
+      const input =
+        document.getElementById('storeAuthCode');
+
+      const code = input.value.trim();
+
+      if (!code) {
+        setMessage(
+          '店舗認証コードを入力してください。',
+          false
+        );
+        input.focus();
+        return '';
+      }
+
+      const proof = await sha256Hex(code);
+
+      localStorage.setItem(
+        getStoreAuthStorageKey(store),
+        proof
+      );
+
+      input.value = '';
+      renderStoreAuthStatus();
+
+      setMessage(
+        store + 'の認証コードを端末に保存しました。',
+        true
+      );
+
+      return proof;
+    }
+
+    async function resolveStoreAuthProof(store) {
+      const input =
+        document.getElementById('storeAuthCode');
+
+      if (input.value.trim()) {
+        return await saveStoreAuthentication(store);
+      }
+
+      const proof = getStoredAuthProof(store);
+
+      if (proof) {
+        return proof;
+      }
+
+      setMessage(
+        store + 'の店舗認証コードを入力してください。',
+        false
+      );
+
+      input.focus();
+
+      throw Object.assign(
+        new Error('店舗認証コードが未設定です。'),
+        { code: 'AUTH_REQUIRED' }
       );
     }
 
@@ -1176,6 +1545,155 @@
       return true;
     }
 
+    function loadPendingAttempt() {
+      const raw = sessionStorage.getItem(
+        PENDING_ATTEMPT_STORAGE_KEY
+      );
+
+      if (!raw) {
+        return null;
+      }
+
+      try {
+        const attempt = JSON.parse(raw);
+
+        if (
+          !attempt ||
+          attempt.version !== 2 ||
+          attempt.requestId !== currentRequestId ||
+          !Array.isArray(attempt.operations)
+        ) {
+          sessionStorage.removeItem(
+            PENDING_ATTEMPT_STORAGE_KEY
+          );
+          return null;
+        }
+
+        return attempt;
+      } catch (error) {
+        console.warn(
+          'pending attempt restore failed',
+          error
+        );
+
+        sessionStorage.removeItem(
+          PENDING_ATTEMPT_STORAGE_KEY
+        );
+        return null;
+      }
+    }
+
+    function persistPendingAttempt(attempt) {
+      sessionStorage.setItem(
+        PENDING_ATTEMPT_STORAGE_KEY,
+        JSON.stringify(attempt)
+      );
+    }
+
+    function clearPendingAttempt() {
+      sessionStorage.removeItem(
+        PENDING_ATTEMPT_STORAGE_KEY
+      );
+    }
+
+    function createClientAttemptId() {
+      if (
+        window.crypto &&
+        typeof window.crypto.randomUUID === 'function'
+      ) {
+        return window.crypto.randomUUID();
+      }
+
+      return (
+        Date.now().toString(36) +
+        '_' +
+        Math.random().toString(36).slice(2, 12)
+      );
+    }
+
+    async function createAttemptFingerprint(
+      data,
+      requests
+    ) {
+      const normalized = {
+        requestId: currentRequestId,
+        store: data.store,
+        jan: data.jan,
+        maker: data.maker,
+        productName: data.productName,
+        spec: data.spec,
+        price: data.price,
+        note: data.note,
+        requests: requests.map(function (request) {
+          return {
+            popType: request.popType,
+            count: request.count
+          };
+        })
+      };
+
+      return await sha256Hex(
+        JSON.stringify(normalized)
+      );
+    }
+
+    async function getOrCreatePendingAttempt(
+      data,
+      requests
+    ) {
+      const fingerprint =
+        await createAttemptFingerprint(
+          data,
+          requests
+        );
+
+      const existing = loadPendingAttempt();
+
+      if (
+        existing &&
+        existing.fingerprint === fingerprint &&
+        existing.store === data.store &&
+        existing.operations.length === requests.length
+      ) {
+        return existing;
+      }
+
+      if (
+        existing &&
+        existing.operations.some(function (operation) {
+          return operation.completed === true;
+        })
+      ) {
+        throw Object.assign(
+          new Error(
+            '前回の「元POP＋帯」登録が途中です。入力内容を前回と同じ状態へ戻して再登録するか、登録済み分だけを印刷実行してください。'
+          ),
+          { code: 'PARTIAL_ATTEMPT_MISMATCH' }
+        );
+      }
+
+      const attemptId = createClientAttemptId();
+
+      const attempt = {
+        version: 2,
+        requestId: currentRequestId,
+        store: data.store,
+        fingerprint: fingerprint,
+        attemptId: attemptId,
+        operations: requests.map(function (request, index) {
+          return {
+            operationId:
+              attemptId + '_' + String(index + 1),
+            popType: request.popType,
+            completed: false
+          };
+        })
+      };
+
+      persistPendingAttempt(attempt);
+      return attempt;
+    }
+
     async function submitData() {
       if (submitting) {
         setMessage(
@@ -1206,6 +1724,26 @@
       const data = getFormData();
 
       if (!validateData(data)) {
+        return;
+      }
+
+      if (
+        currentRequestStore &&
+        currentRequestStore !== data.store
+      ) {
+        setMessage(
+          '同じ受付IDで店舗を変更できません。印刷実行後に店舗を変更してください。',
+          false
+        );
+        return;
+      }
+
+      let authProof = '';
+
+      try {
+        authProof =
+          await resolveStoreAuthProof(data.store);
+      } catch (error) {
         return;
       }
 
@@ -1252,16 +1790,31 @@
       );
 
       try {
-        /*
-         * Google Apps Scriptの既存仕様に合わせ、
-         * 非表示iframeで順番に送信する。
-         */
-        for (const request of requests) {
-          await sendOneSaveRequest(request);
+        const attempt =
+          await getOrCreatePendingAttempt(
+            data,
+            requests
+          );
+
+        for (let index = 0; index < requests.length; index += 1) {
+          const operation = attempt.operations[index];
+
+          if (operation.completed === true) {
+            continue;
+          }
+
+          await sendOneSaveRequest(
+            requests[index],
+            authProof,
+            operation.operationId
+          );
+
+          operation.completed = true;
+          persistPendingAttempt(attempt);
+          recordSuccessfulSave(data.store);
         }
 
-        registeredThisSession += requests.length;
-
+        clearPendingAttempt();
         addHistory(data);
         clearFormAfterSubmit();
 
@@ -1292,10 +1845,31 @@
           error
         );
 
-        setMessage(
-          '登録通信に失敗しました。通信環境を確認して再度登録してください。',
-          false
-        );
+        if (
+          error &&
+          error.code === 'PARTIAL_ATTEMPT_MISMATCH'
+        ) {
+          setMessage(
+            error.message,
+            false
+          );
+        } else if (error && error.code === 'AUTH_FAILED') {
+          clearStoredAuthProof(data.store);
+
+          setMessage(
+            '店舗認証コードが正しくありません。認証コードを再入力してください。',
+            false
+          );
+
+          document
+            .getElementById('storeAuthCode')
+            .focus();
+        } else {
+          setMessage(
+            '登録通信に失敗しました。通信環境を確認して再度登録してください。',
+            false
+          );
+        }
       } finally {
         submitting = false;
         submitButton.disabled = false;
@@ -1303,95 +1877,134 @@
       }
     }
 
-    function sendOneSaveRequest(data) {
+    function sendOneSaveRequest(
+      data,
+      authProof,
+      clientOperationId
+    ) {
+      return sendJsonpRequest({
+        action: 'save',
+        store: data.store,
+        authProof: authProof,
+        clientVersion: FRONTEND_CODE_VERSION,
+        clientOperationId: clientOperationId,
+        jan: data.jan,
+        maker: data.maker,
+        productName: data.productName,
+        spec: data.spec,
+        price: data.price,
+        popType: data.popType,
+        count: data.count,
+        note: data.note,
+        requestId: data.requestId,
+        t: String(Date.now())
+      });
+    }
+
+    function sendJsonpRequest(parameters) {
       return new Promise(function (resolve, reject) {
-        const frameName =
-          'popSaveFrame_' +
+        const callbackName =
+          'popJsonp_' +
           Date.now() +
           '_' +
-          Math.random().toString(36).slice(2, 8);
+          Math.random().toString(36).slice(2, 10);
+
+        const script =
+          document.createElement('script');
 
         let finished = false;
 
-        const params = new URLSearchParams({
-          action: 'save',
-          key: SECRET_KEY,
-          store: data.store,
-          jan: data.jan,
-          maker: data.maker,
-          productName: data.productName,
-          spec: data.spec,
-          price: data.price,
-          popType: data.popType,
-          count: data.count,
-          note: data.note,
-          requestId: data.requestId,
-          t: String(Date.now())
-        });
-
-        const iframe =
-          document.createElement('iframe');
-
-        iframe.name = frameName;
-        iframe.id = frameName;
-        iframe.style.display = 'none';
+        const timeoutId = window.setTimeout(
+          function () {
+            finishError(
+              Object.assign(
+                new Error('通信がタイムアウトしました。'),
+                { code: 'TIMEOUT' }
+              )
+            );
+          },
+          15000
+        );
 
         function cleanup() {
-          window.setTimeout(function () {
-            const oldFrame =
-              document.getElementById(frameName);
+          window.clearTimeout(timeoutId);
 
-            if (oldFrame) {
-              oldFrame.remove();
-            }
-          }, 1000);
+          if (script.parentNode) {
+            script.parentNode.removeChild(script);
+          }
+
+          try {
+            delete window[callbackName];
+          } catch (error) {
+            window[callbackName] = undefined;
+          }
         }
 
-        function finishSuccess() {
+        function finishSuccess(response) {
           if (finished) {
             return;
           }
 
           finished = true;
           cleanup();
-          resolve();
+          resolve(response);
         }
 
-        iframe.onload = function () {
-          window.setTimeout(
-            finishSuccess,
-            400
-          );
-        };
-
-        iframe.onerror = function () {
+        function finishError(error) {
           if (finished) {
             return;
           }
 
           finished = true;
           cleanup();
+          reject(error);
+        }
 
-          reject(
-            new Error('save failed')
+        window[callbackName] = function (response) {
+          if (response && response.ok) {
+            finishSuccess(response);
+            return;
+          }
+
+          finishError(
+            Object.assign(
+              new Error(
+                response && response.error
+                  ? response.error
+                  : 'Apps Script処理に失敗しました。'
+              ),
+              {
+                code:
+                  response && response.errorCode
+                    ? response.errorCode
+                    : 'SERVER_ERROR',
+                response: response
+              }
+            )
           );
         };
 
-        iframe.src =
+        const params =
+          new URLSearchParams(parameters);
+
+        params.set('callback', callbackName);
+
+        script.async = true;
+        script.src =
           WEB_APP_URL +
           '?' +
           params.toString();
 
-        document.body.appendChild(iframe);
+        script.onerror = function () {
+          finishError(
+            Object.assign(
+              new Error('通信に失敗しました。'),
+              { code: 'NETWORK_ERROR' }
+            )
+          );
+        };
 
-        /*
-         * Apps Script側が応答本文を返さない場合にも
-         * 送信完了扱いへ進める既存のタイムアウト保険。
-         */
-        window.setTimeout(
-          finishSuccess,
-          5000
-        );
+        document.head.appendChild(script);
       });
     }
 
@@ -1414,6 +2027,19 @@
         return;
       }
 
+      const printStore =
+        currentRequestStore ||
+        document.getElementById('store').value;
+
+      let authProof = '';
+
+      try {
+        authProof =
+          await resolveStoreAuthProof(printStore);
+      } catch (error) {
+        return;
+      }
+
       await stopScan();
       blurAllInputs();
 
@@ -1432,7 +2058,9 @@
 
       try {
         await sendPrintRequest(
-          currentRequestId
+          currentRequestId,
+          printStore,
+          authProof
         );
 
         setMessage(
@@ -1451,10 +2079,23 @@
           error
         );
 
-        setMessage(
-          '印刷実行の通信に失敗しました。通信環境を確認して再度押してください。',
-          false
-        );
+        if (error && error.code === 'AUTH_FAILED') {
+          clearStoredAuthProof(printStore);
+
+          setMessage(
+            '店舗認証コードが正しくありません。認証コードを再入力してください。',
+            false
+          );
+
+          document
+            .getElementById('storeAuthCode')
+            .focus();
+        } else {
+          setMessage(
+            '印刷実行の通信に失敗しました。通信環境を確認して再度押してください。',
+            false
+          );
+        }
       } finally {
         printing = false;
         printButton.disabled = false;
@@ -1462,82 +2103,18 @@
       }
     }
 
-    function sendPrintRequest(requestId) {
-      return new Promise(function (resolve, reject) {
-        const frameName =
-          'popPrintFrame_' +
-          Date.now() +
-          '_' +
-          Math.random().toString(36).slice(2, 8);
-
-        let finished = false;
-
-        const params = new URLSearchParams({
-          action: 'print',
-          key: SECRET_KEY,
-          requestId: requestId,
-          t: String(Date.now())
-        });
-
-        const iframe =
-          document.createElement('iframe');
-
-        iframe.name = frameName;
-        iframe.id = frameName;
-        iframe.style.display = 'none';
-
-        function cleanup() {
-          window.setTimeout(function () {
-            const oldFrame =
-              document.getElementById(frameName);
-
-            if (oldFrame) {
-              oldFrame.remove();
-            }
-          }, 1000);
-        }
-
-        function finishSuccess() {
-          if (finished) {
-            return;
-          }
-
-          finished = true;
-          cleanup();
-          resolve();
-        }
-
-        iframe.onload = function () {
-          window.setTimeout(
-            finishSuccess,
-            400
-          );
-        };
-
-        iframe.onerror = function () {
-          if (finished) {
-            return;
-          }
-
-          finished = true;
-          cleanup();
-
-          reject(
-            new Error('print failed')
-          );
-        };
-
-        iframe.src =
-          WEB_APP_URL +
-          '?' +
-          params.toString();
-
-        document.body.appendChild(iframe);
-
-        window.setTimeout(
-          finishSuccess,
-          5000
-        );
+    function sendPrintRequest(
+      requestId,
+      store,
+      authProof
+    ) {
+      return sendJsonpRequest({
+        action: 'print',
+        store: store,
+        authProof: authProof,
+        clientVersion: FRONTEND_CODE_VERSION,
+        requestId: requestId,
+        t: String(Date.now())
       });
     }
 
