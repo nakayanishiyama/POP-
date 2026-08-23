@@ -44,7 +44,7 @@
     <h1>日割り進捗</h1>
     <p class="muted">完成済み日割り進捗の値をそのまま表示します。確認ID「TESTID」と初回設定済みPASSを使用してください。</p>
     <div class="meta">
-      <div>Frontend</div><div>GITHUB_PAGES_20260823_V1</div>
+      <div>Frontend</div><div>GITHUB_PAGES_PROVISIONAL_V10_20260823_V1</div>
       <div>Backend</div><div id="backendRevision">確認中</div>
     </div>
   </section>
@@ -75,6 +75,7 @@
     <h2 id="progressTitle" class="progress-headline">進捗</h2>
     <div id="progressContext" class="progress-context"></div>
     <div id="progressMeta" class="muted"></div>
+    <div id="provisionalNotice" class="notice warning hidden"></div>
     <table><tbody id="progressRows"></tbody></table>
     <div id="sourceMeta" class="muted source-meta"></div>
     <div id="recordStatus" class="notice">表示後に閲覧記録を保存します。</div>
@@ -233,7 +234,7 @@ async function login() {
     show('loginCard', false);
     show('selectCard', true);
     document.getElementById('welcome').textContent = res.employeeName + ' として認証しました。店舗・部門は毎回選択します。';
-    fillSelect('store', res.stores);
+    fillStoreSelect(res.stores, res.provisionalStores || []);
     fillSelect('department', res.departments);
     setStatus('認証成功。表示対象を選択してください。', 'success');
   } catch (err) {
@@ -243,6 +244,18 @@ async function login() {
   } finally {
     setBusy('loginButton', false);
   }
+}
+
+function fillStoreSelect(items, provisionalStores) {
+  const s = document.getElementById('store');
+  while (s.options.length > 1) s.remove(1);
+  const provisional = provisionalStores || [];
+  (items || []).forEach(function(v) {
+    const o = document.createElement('option');
+    o.value = v;
+    o.textContent = provisional.indexOf(v) >= 0 ? '【暫定】' + v : v;
+    s.appendChild(o);
+  });
 }
 
 function fillSelect(id, items) {
@@ -307,8 +320,17 @@ async function openProgress() {
 
 function renderProgress(data) {
   document.getElementById('progressTitle').textContent = data.statusTitle;
-  document.getElementById('progressContext').textContent = data.store + ' / ' + data.department;
+  const storeLabel = data.provisionalStore ? '【暫定】' + data.store : data.store;
+  document.getElementById('progressContext').textContent = storeLabel + ' / ' + data.department;
   document.getElementById('progressMeta').textContent = data.targetDateDisplay + 'までの進捗';
+  const provisionalNotice = document.getElementById('provisionalNotice');
+  if (data.provisionalStore) {
+    provisionalNotice.textContent = '【暫定】' + (data.provisionalNote || '対象日の未着値は未反映です。');
+    provisionalNotice.classList.remove('hidden');
+  } else {
+    provisionalNotice.textContent = '';
+    provisionalNotice.classList.add('hidden');
+  }
   document.getElementById('sourceMeta').textContent = '実Excel由来 / generation ' + data.generationId + ' / 生成 ' + data.generatedAt;
   const body = document.getElementById('progressRows');
   body.textContent = '';
@@ -335,6 +357,8 @@ function backToSelection() {
   show('selectCard', true);
   document.getElementById('store').value = '';
   document.getElementById('department').value = '';
+  document.getElementById('provisionalNotice').classList.add('hidden');
+  document.getElementById('provisionalNotice').textContent = '';
   setStatus('次の表示対象を選択してください。', 'success');
 }
 
