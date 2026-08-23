@@ -1,0 +1,350 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="referrer" content="no-referrer">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://script.google.com https://script.googleusercontent.com; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'none'; object-src 'none'; base-uri 'self'; form-action 'none'">
+  <title>日割り進捗</title>
+  <style>
+    :root { font-family: system-ui, -apple-system, "Segoe UI", sans-serif; color: #202124; }
+    body { margin: 0; background: #f6f7f8; }
+    main { max-width: 760px; margin: 0 auto; padding: 18px 14px 40px; }
+    .card { background: #fff; border: 1px solid #dadce0; border-radius: 14px; padding: 20px; box-shadow: 0 1px 2px rgba(60,64,67,.08); margin-bottom: 14px; }
+    h1 { font-size: 23px; margin: 0 0 10px; }
+    h2 { font-size: 18px; margin: 0 0 14px; }
+    p { line-height: 1.6; }
+    label { display: block; font-weight: 700; margin: 12px 0 5px; }
+    input, select, button { width: 100%; box-sizing: border-box; min-height: 44px; border-radius: 9px; border: 1px solid #bdc1c6; padding: 9px 11px; font-size: 16px; background: #fff; }
+    button { border: 0; background: #1a73e8; color: #fff; font-weight: 700; margin-top: 15px; cursor: pointer; }
+    button.secondary { background: #5f6368; }
+    button:disabled { opacity: .55; cursor: wait; }
+    .muted { color: #5f6368; font-size: 13px; }
+    .notice { padding: 11px 13px; border-radius: 9px; background: #f1f3f4; margin: 12px 0; }
+    .warning { background: #fef7e0; }
+    .error { background: #fce8e6; color: #b3261e; }
+    .success { background: #e6f4ea; color: #137333; }
+    .hidden { display: none !important; }
+    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    table { width: 100%; border-collapse: collapse; margin-top: 12px; }
+    th, td { border-bottom: 1px solid #e0e0e0; padding: 10px 6px; text-align: left; vertical-align: top; }
+    th { width: 42%; }
+    .progress-headline { font-size: 25px; line-height: 1.35; color: #0d652d; margin-bottom: 6px; }
+    .progress-context { font-size: 16px; font-weight: 700; margin-bottom: 2px; }
+    .hero-row th, .hero-row td { background: #e6f4ea; border-bottom-color: #ceead6; }
+    .hero-row td { color: #0d652d; font-size: 24px; font-weight: 800; }
+    .source-meta { margin-top: 12px; }
+    .meta { display: grid; grid-template-columns: 8em 1fr; gap: 5px 10px; font-size: 13px; }
+    @media (max-width: 520px) { .grid { grid-template-columns: 1fr; } .card { padding: 16px; } }
+  </style>
+</head>
+<body>
+<main>
+  <section class="card">
+    <h1>日割り進捗</h1>
+    <p class="muted">完成済み日割り進捗の値をそのまま表示します。確認ID「TESTID」と初回設定済みPASSを使用してください。</p>
+    <div class="meta">
+      <div>Frontend</div><div>GITHUB_PAGES_20260823_V1</div>
+      <div>Backend</div><div id="backendRevision">確認中</div>
+    </div>
+  </section>
+
+  <section id="statusCard" class="card"><div id="status" class="notice">初期状態を確認しています…</div></section>
+
+  <section id="loginCard" class="card hidden">
+    <h2>ログイン</h2>
+    <div class="notice warning">確認ID：<strong>TESTID</strong>＋初回設定済みPASS</div>
+    <label for="employeeId">従業員ID</label>
+    <input id="employeeId" type="text" autocomplete="username" value="TESTID">
+    <label for="loginPassword">PASS</label>
+    <input id="loginPassword" type="password" autocomplete="current-password">
+    <button id="loginButton" type="button">ログイン</button>
+  </section>
+
+  <section id="selectCard" class="card hidden">
+    <h2>表示対象を選択</h2>
+    <p id="welcome" class="muted"></p>
+    <div class="grid">
+      <div><label for="store">店舗</label><select id="store"><option value="">選択してください</option></select></div>
+      <div><label for="department">部門</label><select id="department"><option value="">選択してください</option></select></div>
+    </div>
+    <button id="viewButton" type="button">進捗を表示</button>
+  </section>
+
+  <section id="progressCard" class="card hidden">
+    <h2 id="progressTitle" class="progress-headline">進捗</h2>
+    <div id="progressContext" class="progress-context"></div>
+    <div id="progressMeta" class="muted"></div>
+    <table><tbody id="progressRows"></tbody></table>
+    <div id="sourceMeta" class="muted source-meta"></div>
+    <div id="recordStatus" class="notice">表示後に閲覧記録を保存します。</div>
+    <button id="backButton" class="secondary" type="button">別の対象を見る</button>
+  </section>
+</main>
+<script>
+'use strict';
+
+const WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbzOy_RG8u7L7grOmOsYuUhd180Lu-jYmEpXyZA2zNqOSMUYVvvdcvav_CDp-EQdq6MT/exec';
+const REQUEST_TIMEOUT_MS = 15000;
+const EMPLOYEE_ID = 'TESTID';
+let authKeyHex = '';
+let options = null;
+
+function setStatus(message, kind) {
+  const el = document.getElementById('status');
+  el.textContent = message;
+  el.className = 'notice' + (kind ? ' ' + kind : '');
+}
+function show(id, visible) { document.getElementById(id).classList.toggle('hidden', !visible); }
+function errorText(err) { return (err && err.message) ? err.message : String(err || 'UNKNOWN_ERROR'); }
+function fail(err) {
+  const message = errorText(err);
+  if (message.indexOf('ID_OR_PASSWORD') >= 0 || message.indexOf('AUTH_') >= 0 || message.indexOf('PASSWORD_') >= 0) {
+    authKeyHex = '';
+    show('selectCard', false);
+    show('progressCard', false);
+    show('loginCard', true);
+  }
+  setStatus('ERROR: ' + message, 'error');
+}
+function setBusy(id, busy) {
+  const b = document.getElementById(id);
+  if (b) b.disabled = !!busy;
+}
+
+function sendJsonpRequest(parameters) {
+  return new Promise(function(resolve, reject) {
+    const callbackName = 'dbpJsonp_' + Date.now() + '_' + Math.random().toString(36).slice(2, 10);
+    const script = document.createElement('script');
+    let finished = false;
+    const timeoutId = window.setTimeout(function() {
+      finishError(new Error('通信がタイムアウトしました。'));
+    }, REQUEST_TIMEOUT_MS);
+
+    function cleanup() {
+      window.clearTimeout(timeoutId);
+      if (script.parentNode) script.parentNode.removeChild(script);
+      try { delete window[callbackName]; } catch (error) { window[callbackName] = undefined; }
+    }
+    function finishSuccess(data) {
+      if (finished) return;
+      finished = true;
+      cleanup();
+      resolve(data);
+    }
+    function finishError(error) {
+      if (finished) return;
+      finished = true;
+      cleanup();
+      reject(error);
+    }
+
+    window[callbackName] = function(response) {
+      if (response && response.ok === true) {
+        finishSuccess(response.data);
+        return;
+      }
+      finishError(new Error(response && response.errorCode ? response.errorCode : 'SERVER_ERROR'));
+    };
+    const params = new URLSearchParams(parameters || {});
+    params.set('callback', callbackName);
+    params.set('t', String(Date.now()));
+    script.async = true;
+    script.referrerPolicy = 'no-referrer';
+    script.src = WEB_APP_URL + '?' + params.toString();
+    script.onerror = function() { finishError(new Error('通信に失敗しました。')); };
+    document.head.appendChild(script);
+  });
+}
+
+async function sha256Hex(text) {
+  const bytes = new TextEncoder().encode(String(text));
+  const digest = await crypto.subtle.digest('SHA-256', bytes);
+  return Array.from(new Uint8Array(digest)).map(function(v) { return v.toString(16).padStart(2, '0'); }).join('');
+}
+
+async function hmacSha256Hex(keyText, message) {
+  const key = await crypto.subtle.importKey(
+    'raw',
+    new TextEncoder().encode(String(keyText)),
+    {name: 'HMAC', hash: 'SHA-256'},
+    false,
+    ['sign']
+  );
+  const signature = await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(String(message)));
+  return Array.from(new Uint8Array(signature)).map(function(v) { return v.toString(16).padStart(2, '0'); }).join('');
+}
+
+async function getChallenge(purpose) {
+  return await sendJsonpRequest({action: 'challenge', purpose: purpose});
+}
+
+function proofMessage(challengeToken, purpose, contextParts) {
+  return [challengeToken, purpose, EMPLOYEE_ID].concat(contextParts || []).join('\n');
+}
+
+async function proofForChallenge(challenge, purpose, contextParts) {
+  if (!authKeyHex) throw new Error('AUTH_KEY_MISSING');
+  return await hmacSha256Hex(authKeyHex, proofMessage(challenge.challengeToken, purpose, contextParts));
+}
+
+async function bootstrap() {
+  try {
+    const state = await sendJsonpRequest({action: 'state'});
+    document.getElementById('backendRevision').textContent = state.runtimeRevision || state.buildId || '確認済み';
+    if (state.blocked) {
+      setStatus(state.message || '途中状態の確認が必要です。', 'error');
+      return;
+    }
+    if (!state.initialized) {
+      setStatus('確認環境が未初期化です。安全のため停止しました。', 'error');
+      return;
+    }
+    setStatus('TESTIDと初回設定済みPASSで確認できます。', 'success');
+    show('loginCard', true);
+  } catch (err) {
+    fail(err);
+  }
+}
+
+async function login() {
+  const id = document.getElementById('employeeId').value.trim();
+  let password = document.getElementById('loginPassword').value;
+  if (id !== EMPLOYEE_ID || !password) {
+    setStatus('IDまたはPASSを確認してください。', 'error');
+    return;
+  }
+  setBusy('loginButton', true);
+  setStatus('認証しています…');
+  try {
+    const challenge = await getChallenge('login');
+    const candidateKey = await sha256Hex(String(challenge.passwordSalt) + '\n' + password);
+    password = '';
+    document.getElementById('loginPassword').value = '';
+    const proof = await hmacSha256Hex(candidateKey, proofMessage(challenge.challengeToken, 'login', []));
+    const res = await sendJsonpRequest({
+      action: 'login',
+      employeeId: EMPLOYEE_ID,
+      challengeToken: challenge.challengeToken,
+      proof: proof
+    });
+    authKeyHex = candidateKey;
+    options = res;
+    show('loginCard', false);
+    show('selectCard', true);
+    document.getElementById('welcome').textContent = res.employeeName + ' として認証しました。店舗・部門は毎回選択します。';
+    fillSelect('store', res.stores);
+    fillSelect('department', res.departments);
+    setStatus('認証成功。表示対象を選択してください。', 'success');
+  } catch (err) {
+    authKeyHex = '';
+    document.getElementById('loginPassword').value = '';
+    fail(err);
+  } finally {
+    setBusy('loginButton', false);
+  }
+}
+
+function fillSelect(id, items) {
+  const s = document.getElementById(id);
+  while (s.options.length > 1) s.remove(1);
+  (items || []).forEach(function(v) {
+    const o = document.createElement('option');
+    o.value = v;
+    o.textContent = v;
+    s.appendChild(o);
+  });
+}
+
+async function openProgress() {
+  const store = document.getElementById('store').value;
+  const department = document.getElementById('department').value;
+  if (!store || !department) {
+    setStatus('店舗と部門を両方選択してください。', 'error');
+    return;
+  }
+  setBusy('viewButton', true);
+  setStatus('実データ進捗を取得しています…');
+  try {
+    const challenge = await getChallenge('progress');
+    const proof = await proofForChallenge(challenge, 'progress', [store, department]);
+    const data = await sendJsonpRequest({
+      action: 'progress',
+      employeeId: EMPLOYEE_ID,
+      challengeToken: challenge.challengeToken,
+      proof: proof,
+      store: store,
+      department: department
+    });
+    renderProgress(data);
+    setStatus('表示成功。閲覧記録を保存しています…');
+    try {
+      const recordChallenge = await getChallenge('record');
+      const recordProof = await proofForChallenge(recordChallenge, 'record', [data.renderToken]);
+      const logResult = await sendJsonpRequest({
+        action: 'record',
+        employeeId: EMPLOYEE_ID,
+        challengeToken: recordChallenge.challengeToken,
+        proof: recordProof,
+        renderToken: data.renderToken
+      });
+      const r = document.getElementById('recordStatus');
+      r.textContent = '閲覧記録：保存済み（' + logResult.viewDate + ' / ' + logResult.store + ' / ' + logResult.department + '）';
+      r.className = 'notice success';
+      setStatus('表示・閲覧記録とも成功しました。', 'success');
+    } catch (recordErr) {
+      const r = document.getElementById('recordStatus');
+      r.textContent = '閲覧記録：未完了 ' + errorText(recordErr);
+      r.className = 'notice error';
+      setStatus('表示は成功しましたが閲覧記録は未完了です。', 'error');
+    }
+  } catch (err) {
+    fail(err);
+  } finally {
+    setBusy('viewButton', false);
+  }
+}
+
+function renderProgress(data) {
+  document.getElementById('progressTitle').textContent = data.statusTitle;
+  document.getElementById('progressContext').textContent = data.store + ' / ' + data.department;
+  document.getElementById('progressMeta').textContent = data.targetDateDisplay + 'までの進捗';
+  document.getElementById('sourceMeta').textContent = '実Excel由来 / generation ' + data.generationId + ' / 生成 ' + data.generatedAt;
+  const body = document.getElementById('progressRows');
+  body.textContent = '';
+  (data.rows || []).forEach(function(row, index) {
+    const tr = document.createElement('tr');
+    if (index === 0) tr.className = 'hero-row';
+    const th = document.createElement('th');
+    const td = document.createElement('td');
+    th.textContent = row[0];
+    td.textContent = row[1];
+    tr.appendChild(th);
+    tr.appendChild(td);
+    body.appendChild(tr);
+  });
+  const rs = document.getElementById('recordStatus');
+  rs.textContent = '画面表示が完了しました。閲覧記録を保存中…';
+  rs.className = 'notice';
+  show('selectCard', false);
+  show('progressCard', true);
+}
+
+function backToSelection() {
+  show('progressCard', false);
+  show('selectCard', true);
+  document.getElementById('store').value = '';
+  document.getElementById('department').value = '';
+  setStatus('次の表示対象を選択してください。', 'success');
+}
+
+document.getElementById('loginButton').addEventListener('click', login);
+document.getElementById('viewButton').addEventListener('click', openProgress);
+document.getElementById('backButton').addEventListener('click', backToSelection);
+document.getElementById('loginPassword').addEventListener('keydown', function(event) {
+  if (event.key === 'Enter') login();
+});
+window.addEventListener('load', bootstrap);
+</script>
+</body>
+</html>
