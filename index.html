@@ -328,11 +328,15 @@
   <h1>POP依頼登録</h1>
 
   <div class="box update-box">
-    <div class="update-date">最終更新：2026年7月31日</div>
+    <div class="update-date">最終更新：2026年10月14日</div>
 
     <details class="pop-update-history">
-      <summary>更新履歴（最終更新：2026年7月31日）</summary>
+      <summary>更新履歴（最終更新：2026年10月14日）</summary>
       <ul class="pop-update-history-list">
+        <li>
+          <span class="pop-update-history-date">2026年10月14日</span>
+          短縮JANのマスタ照合を修正し、マスタ登録商品の税抜売価を自動入力するようにしました。
+        </li>
         <li>
           <span class="pop-update-history-date">2026年7月31日</span>
           通信処理を安全化し、二重登録防止を追加しました。操作方法は従来どおりです。
@@ -406,10 +410,10 @@
       id="price"
       type="text"
       inputmode="numeric"
-      placeholder="空白または0なら定番売価"
+      placeholder="JAN読取後に定番売価を自動入力。必要なら修正可"
       enterkeyhint="done"
     >
-    <div class="field-help">マスタ未登録商品は売価の入力が必要です。</div>
+    <div class="field-help">マスタ登録商品は税抜の定番売価を自動入力します。マスタ未登録商品は売価の入力が必要です。</div>
 
     <label for="popType">POP種類</label>
     <select id="popType" onchange="updatePopTypeUi()">
@@ -473,7 +477,7 @@
       'https://script.google.com/macros/s/AKfycbyk3Jv4r5NIu8iBATrwV6OjQXGUdok7wyc2SZhrUYkTbbOqcN2LAwvG5Pz8Uc39RDq3/exec';
 
     const FRONTEND_CODE_VERSION =
-      '20260731_no_auth_frontend_v6';
+      '20261014_no_auth_frontend_v7';
 
     const MASTER_JSON_URL = 'master.json?v=20260731';
 
@@ -630,10 +634,25 @@
       return String(value || '').replace(/\D/g, '');
     }
 
+    function findMasterItem(master, jan) {
+      const exactItem = master[jan];
+
+      if (exactItem) {
+        return exactItem;
+      }
+
+      if (jan.length === 8) {
+        return master[jan.padStart(13, '0')] || null;
+      }
+
+      return null;
+    }
+
     function clearProductFields() {
       document.getElementById('maker').value = '';
       document.getElementById('productName').value = '';
       document.getElementById('spec').value = '';
+      document.getElementById('price').value = '';
 
       setProductMessage('', true);
 
@@ -645,6 +664,7 @@
       document.getElementById('maker').value = item.maker || '';
       document.getElementById('productName').value = item.name || '';
       document.getElementById('spec').value = item.spec || '';
+      document.getElementById('price').value = item.price || '';
     }
 
     function lookupProductByJan(force) {
@@ -670,12 +690,13 @@
       setProductMessage('商品情報を確認中...', true);
 
       loadMasterJson().then(function (master) {
-        const item = master[jan];
+        const item = findMasterItem(master, jan);
 
         if (!item) {
           document.getElementById('maker').value = '';
           document.getElementById('productName').value = '';
           document.getElementById('spec').value = '';
+          document.getElementById('price').value = '';
 
           currentProductFound = false;
 
@@ -691,7 +712,7 @@
         currentProductFound = true;
 
         setProductMessage(
-          '商品情報を自動入力しました。必要なら修正できます。',
+          '商品情報と税抜売価を自動入力しました。必要なら修正できます。',
           true
         );
       });
@@ -701,7 +722,7 @@
       lastLookupJan = jan;
 
       const master = await loadMasterJson();
-      const item = master[jan];
+      const item = findMasterItem(master, jan);
 
       if (item) {
         currentProductFound = true;
@@ -716,6 +737,14 @@
 
         if (!document.getElementById('spec').value.trim()) {
           document.getElementById('spec').value = item.spec || '';
+        }
+
+        const priceInput = document.getElementById('price');
+        if (
+          (!priceInput.value.trim() || Number(priceInput.value) <= 0) &&
+          item.price
+        ) {
+          priceInput.value = item.price;
         }
 
         setProductMessage(
